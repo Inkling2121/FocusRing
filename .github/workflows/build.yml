@@ -1,0 +1,32 @@
+name: Build FocusRing
+
+on:
+  push:
+    tags:
+      - "v*.*.*"   # läuft nur bei Tags wie v0.1.0, v1.0.0 etc.
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install deps
+        run: npm install
+
+      - name: Build dist
+        run: npm run dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: focusring-windows
+          path: dist/**
