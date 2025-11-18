@@ -1,31 +1,35 @@
 {
   "name": "focusring",
   "version": "0.1.0",
-  "private": true,
+  "description": "FocusRing – Desktop Overlay fuer Notizen/Timer/Reminder",
   "main": "electron/main.js",
-  "type": "module",
+  "author": "Noah Wirth",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV=1 electron .\"",
-    "build:ui": "vite build",
-    "start": "electron ."
+    "build:renderer": "vite build",
+    "build": "npm run build:renderer",          
+    "dist": "npm run build:renderer && electron-builder"
   },
-  "dependencies": {
-    "better-sqlite3": "^12.4.1",
-    "electron": "^38.6.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "sql.js": "^1.13.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.19.0",
-    "@types/react": "^18.3.26",
-    "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react": "^5.0.4",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
-    "electron-rebuild": "^3.2.9",
-    "typescript": "^5.9.3",
-    "vite": "^7.2.2",
-    "wait-on": "^9.0.1"
+  "build": {
+    "appId": "ch.noahwirth.focusring",
+    "productName": "FocusRing",
+    "files": [
+      "dist/**",           
+      "electron/**",      
+      "node_modules/**",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    }
   }
 }
