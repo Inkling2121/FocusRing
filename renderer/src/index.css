@@ -1,0 +1,46 @@
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.card {
+  background: rgba(20,20,20,0.92);
+  border: 1px solid rgba(148,163,184,0.7);
+  border-radius: 12px;
+  padding: 10px;
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  overflow: auto;
+}
+
+/* global button style bisschen cleaner */
+button {
+  font-family: inherit;
+}
+
+/* mode badge */
+.mode-badge {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: .3px;
+  background: rgba(34,197,94,0.9);
+  color: #fff;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
