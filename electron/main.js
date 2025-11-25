@@ -6,6 +6,7 @@ import { startScheduler, scheduleReminder, cancelReminder } from './scheduler.js
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const activeTimers = new Map()
 
 let overlayWin       // kleines Overlay mit RadialMenu
 let toolWin          // eigenes Fenster fuer Tools (Notizen usw.)
@@ -152,24 +153,74 @@ const registerShortcut = () => {
   }
 }
 
+const scheduleTimer = (timer) => {
+  if (!timer || timer.status !== 'running' || !timer.id) return
+  const now = Date.now()
+  const delay = timer.targetAt - now
+  if (delay <= 0) {
+    const finished = { ...timer, status: 'done' }
+    timersRepo.update(finished)
+    activeTimers.delete(timer.id)
+    const title = timer.name ? `Timer: ${timer.name}` : 'Timer abgelaufen'
+    const body = timer.name ? `Dein Timer "${timer.name}" ist abgelaufen.` : 'Dein Timer ist fertig.'
+    new Notification({ title, body }).show()
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      overlayWin.webContents.send('timer/fired', finished)
+    }
+    return
+  }
+  const existing = activeTimers.get(timer.id)
+  if (existing) clearTimeout(existing)
+  const handle = setTimeout(() => {
+    const finished = { ...timer, status: 'done' }
+    timersRepo.update(finished)
+    activeTimers.delete(timer.id)
+    const title = timer.name ? `Timer: ${timer.name}` : 'Timer abgelaufen'
+    const body = timer.name ? `Dein Timer "${timer.name}" ist abgelaufen.` : 'Dein Timer ist fertig.'
+    new Notification({ title, body }).show()
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      overlayWin.webContents.send('timer/fired', finished)
+    }
+  }, delay)
+  activeTimers.set(timer.id, handle)
+}
+
+const restoreTimers = () => {
+  const list = timersRepo.list() || []
+  const now = Date.now()
+  list.forEach(t => {
+    if (t.status === 'running') {
+      if (t.targetAt && t.targetAt > now) {
+        scheduleTimer(t)
+      } else {
+        const finished = { ...t, status: 'done' }
+        timersRepo.update(finished)
+      }
+    }
+  })
+}
+
+
 // Tools in eigenem Fenster öffnen
 const openToolWindow = async (toolId) => {
   const search = `?tool=${encodeURIComponent(toolId)}`
 
   if (!toolWin || toolWin.isDestroyed()) {
     toolWin = new BrowserWindow({
-      width: 600,
-      height: 420,
-      resizable: true,
-      alwaysOnTop: false,
-      transparent: false,
-      frame: true,
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.cjs'),
-        contextIsolation: true,
-        sandbox: false
-      }
-    })
+  width: 600,
+  height: 420,
+  resizable: true,
+  alwaysOnTop: false,
+  transparent: false,
+  frame: true,
+  backgroundColor: '#181818',            
+  webPreferences: {
+    preload: path.join(__dirname, 'preload.cjs'),
+    contextIsolation: true,
+    sandbox: false
+  }
+})
+
 
     toolWin.on('closed', () => {
       toolWin = null
@@ -192,10 +243,12 @@ app.whenReady().then(async () => {
   try {
     await createOverlayWindow()
     registerShortcut()
+    restoreTimers()
   } catch (error) {
     console.error(error)
   }
 })
+
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
@@ -291,9 +344,52 @@ ipcMain.handle('notes/update', (_e, n) => notesRepo.update(n))
 ipcMain.handle('notes/delete', (_e, id) => notesRepo.remove(id))
 
 // timer
-ipcMain.handle('timer/create', (_e, t) => timersRepo.create(t))
-ipcMain.handle('timer/update', (_e, t) => timersRepo.update(t))
-ipcMain.handle('timer/list', () => timersRepo.list())
+ipcMain.handle('timer/create', (_e, payload) => {
+  const totalSeconds = Number(payload?.totalSeconds || 0)
+  const name = String(payload?.name || '').trim()
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    throw new Error('invalid duration')
+  }
+  const created = timersRepo.create({
+    name,
+    totalSeconds,
+    status: 'running'
+  })
+  scheduleTimer(created)
+  return created
+})
+
+ipcMain.handle('timer/list', () => {
+  return timersRepo.list() || []
+})
+
+ipcMain.handle('timer/cancel', (_e, id) => {
+  if (!id) return
+  const list = timersRepo.list() || []
+  const timer = list.find(t => t.id === id)
+  if (!timer) return
+  const existing = activeTimers.get(id)
+  if (existing) {
+    clearTimeout(existing)
+    activeTimers.delete(id)
+  }
+  const updated = { ...timer, status: 'cancelled' }
+  timersRepo.update(updated)
+  return updated
+})
+
+ipcMain.handle('timer/delete', (_e, id) => {
+  if (!id) return
+  const existing = activeTimers.get(id)
+  if (existing) {
+    clearTimeout(existing)
+    activeTimers.delete(id)
+  }
+  timersRepo.remove(id)
+  return true
+})
+
+
 
 // reminders
 ipcMain.handle('reminder/create', (_e, r) => {

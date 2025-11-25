@@ -2,9 +2,9 @@ html, body, #root {
   width: 100%;
   height: 100%;
   margin: 0;
-  background: transparent;
-  overflow: hidden;
+  background: transparent; 
 }
+
 
 .drag {
   -webkit-app-region: drag;
@@ -16,14 +16,14 @@ html, body, #root {
 
 .card {
   background: rgba(20,20,20,0.92);
-  border: 1px solid rgba(148,163,184,0.7);
+  border: 1px solid #000000;   /* ← schwarzer Rand */
   border-radius: 12px;
   padding: 10px;
   color: #e5e7eb;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
-  overflow: auto;
 }
+
 
 /* global button style bisschen cleaner */
 button {

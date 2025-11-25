@@ -41,7 +41,7 @@ const App: React.FC = () => {
           setTheme(prev => ({ ...prev, ...cfg.theme! }))
         }
       })
-      .catch(() => {})
+      .catch(() => { })
 
     onOverlayTheme(t => {
       if (t) {
@@ -62,7 +62,7 @@ const App: React.FC = () => {
 
     invoke<{ interactive: boolean }>('overlay/getState')
       .then(s => setInteractive(!!s.interactive))
-      .catch(() => {})
+      .catch(() => { })
   }, [isToolWindow])
 
   // TOOL-FENSTER (normale Fenster, kein Clickthrough)
@@ -76,10 +76,10 @@ const App: React.FC = () => {
           flexDirection: 'column',
           gap: 8,
           padding: 10,
-          width: '100vw',
-          height: '100vh',
+          width: '100%',
+          height: '100%',
           boxSizing: 'border-box',
-          background: '#181818',
+          background: '#212121',      // dunkler Hintergrund
           color: '#ffffffff',
           fontFamily:
             'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -106,10 +106,12 @@ const App: React.FC = () => {
           className="card"
           style={{
             flex: 1,
+            minHeight: 0,
             overflow: 'auto',
-            background: '#181818',
-            color: '#ffffffff',
-            borderColor: '#606060'
+            background: '#111111',        // dunkler Inhalt
+            border: '1px solid #000000',  // HART schwarzer Rand
+            borderRadius: 12,
+            boxSizing: 'border-box'
           }}
         >
           {tool === 'notes' && <Notes />}
@@ -117,6 +119,7 @@ const App: React.FC = () => {
           {tool === 'reminder' && <ReminderTool />}
           {tool === 'settings' && <Settings />}
         </div>
+
       </div>
     )
   }
@@ -134,13 +137,13 @@ const App: React.FC = () => {
       className="no-drag"
       onClick={() => {
         // User-Activity im Overlay -> Auto-Cooldown-Reset im Main
-        invoke('overlay/userActivity').catch(() => {})
+        invoke('overlay/userActivity').catch(() => { })
       }}
       style={{
         position: 'relative',
         userSelect: 'none',
         width: '100%',
-        height: '100%',
+        height: '35%',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'flex-start',

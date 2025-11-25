@@ -55,11 +55,53 @@ export const notesRepo = {
   update: (n) => { const now=new Date().toISOString(); run('update notes set title=?,content=?,pinned=?,pos_x=?,pos_y=?,width=?,height=?,updated_at=? where id=?',[n.title||'',n.content||'',n.pinned?1:0,n.pos_x,n.pos_y,n.width,n.height,now,n.id]); return one('select * from notes where id=?',[n.id]) },
   remove: (id) => { run('delete from notes where id=?',[id]); return true }
 }
-export const timersRepo = {
-  list: () => all('select * from timers order by updated_at desc'),
-  create: (t) => { const now=new Date().toISOString(); run('insert into timers(label,duration_ms,elapsed_ms,state,updated_at) values(?,?,?,?,?)',[t.label||'',t.duration_ms||0,t.elapsed_ms||0,t.state||'idle',now]); return one('select * from timers where id=?',[lastId()]) },
-  update: (t) => { const now=new Date().toISOString(); run('update timers set label=?,duration_ms=?,elapsed_ms=?,state=?,updated_at=? where id=?',[t.label||'',t.duration_ms||0,t.elapsed_ms||0,t.state||'idle',now,t.id]); return one('select * from timers where id=?',[t.id]) }
+
+const mapTimerRow = (row) => {
+  if (!row) return null
+  const durMs = row.duration_ms || 0
+  const totalSeconds = Math.floor(durMs / 1000)
+  const baseTime = row.updated_at ? new Date(row.updated_at).getTime() : Date.now()
+  const targetAt = baseTime + durMs
+  return {
+    id: row.id,
+    name: row.label || '',
+    totalSeconds,
+    targetAt,
+    status: row.state || 'idle'
+  }
 }
+
+export const timersRepo = {
+  list: () => {
+    const rows = all('select * from timers order by updated_at desc')
+    return rows.map(mapTimerRow).filter(Boolean)
+  },
+  create: (t) => {
+    const now = new Date().toISOString()
+    const durMs = (t.totalSeconds || 0) * 1000
+    run(
+      'insert into timers(label,duration_ms,elapsed_ms,state,updated_at) values(?,?,?,?,?)',
+      [t.name || '', durMs, 0, t.status || 'running', now]
+    )
+    const row = one('select * from timers where id=?', [lastId()])
+    return mapTimerRow(row)
+  },
+  update: (t) => {
+    const now = new Date().toISOString()
+    const durMs = (t.totalSeconds || 0) * 1000
+    run(
+      'update timers set label=?,duration_ms=?,elapsed_ms=?,state=?,updated_at=? where id=?',
+      [t.name || '', durMs, 0, t.status || 'idle', now, t.id]
+    )
+    const row = one('select * from timers where id=?', [t.id])
+    return mapTimerRow(row)
+  },
+  remove: (id) => {
+    run('delete from timers where id=?', [id])
+    return true
+  }
+}
+
 export const remindersRepo = {
   list: () => all('select * from reminders order by fire_at asc'),
   create: (r) => { const now=new Date().toISOString(); const ts=typeof r.fire_at==='number'?r.fire_at:new Date(r.fire_at).getTime(); run('insert into reminders(message,fire_at,status,created_at) values(?,?,?,?)',[r.message||'',ts,'scheduled',now]); return one('select * from reminders where id=?',[lastId()]) },
