@@ -7,15 +7,15 @@
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV=1 electron .\"",
     "build:renderer": "vite build",
-    "build": "npm run build:renderer",          
+    "build": "npm run build:renderer",
     "dist": "npm run build:renderer && electron-builder"
   },
   "build": {
     "appId": "ch.noahwirth.focusring",
     "productName": "FocusRing",
     "files": [
-      "dist/**",           
-      "electron/**",      
+      "dist/**",
+      "electron/**",
       "node_modules/**",
       "package.json"
     ],
@@ -31,5 +31,22 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": false
     }
+  },
+  "dependencies": {
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "sql.js": "^1.13.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^38.6.0",
+    "electron-builder": "^24.6.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.0.0",
+    "wait-on": "^9.0.3"
   }
 }

@@ -1,15 +1,19 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ESNext",
     "module": "ESNext",
-    "jsx": "react-jsx",
     "moduleResolution": "bundler",
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    "jsx": "react-jsx",
     "strict": true,
+    "allowJs": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["vite/client"]
   },
-  "include": ["renderer/src", "renderer/src/shared", "electron"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "electron"]
 }
