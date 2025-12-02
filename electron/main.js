@@ -53,8 +53,8 @@ const createOverlayWindow = async () => {
   const state = windowRepo.get()
 
   overlayWin = new BrowserWindow({
-    width: state?.width || 340,
-    height: state?.height || 220,
+    width: state?.width || 230,
+    height: state?.height || 130,
     x: state?.pos_x,
     y: state?.pos_y,
     frame: false,
@@ -62,6 +62,7 @@ const createOverlayWindow = async () => {
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -167,6 +168,9 @@ const scheduleTimer = (timer) => {
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.webContents.send('timer/fired', finished)
     }
+    if (toolWin && !toolWin.isDestroyed()) {
+      toolWin.webContents.send('timer/fired', finished)
+    }
     return
   }
   const existing = activeTimers.get(timer.id)
@@ -178,8 +182,14 @@ const scheduleTimer = (timer) => {
     const title = timer.name ? `Timer: ${timer.name}` : 'Timer abgelaufen'
     const body = timer.name ? `Dein Timer "${timer.name}" ist abgelaufen.` : 'Dein Timer ist fertig.'
     new Notification({ title, body }).show()
+    console.log('Timer fired, sending event:', finished)
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.webContents.send('timer/fired', finished)
+      console.log('Sent timer/fired to overlayWin')
+    }
+    if (toolWin && !toolWin.isDestroyed()) {
+      toolWin.webContents.send('timer/fired', finished)
+      console.log('Sent timer/fired to toolWin')
     }
   }, delay)
   activeTimers.set(timer.id, handle)
@@ -213,7 +223,8 @@ const openToolWindow = async (toolId) => {
   alwaysOnTop: false,
   transparent: false,
   frame: true,
-  backgroundColor: '#181818',            
+  backgroundColor: '#181818',
+  autoHideMenuBar: true,
   webPreferences: {
     preload: path.join(__dirname, 'preload.cjs'),
     contextIsolation: true,
@@ -400,6 +411,10 @@ ipcMain.handle('reminder/create', (_e, r) => {
 ipcMain.handle('reminder/cancel', (_e, id) => {
   cancelReminder(id)
   return remindersRepo.cancel(id)
+})
+ipcMain.handle('reminder/delete', (_e, id) => {
+  cancelReminder(id)
+  return remindersRepo.remove(id)
 })
 ipcMain.handle('reminder/list', () => remindersRepo.list())
 

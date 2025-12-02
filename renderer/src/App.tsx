@@ -80,7 +80,7 @@ const App: React.FC = () => {
           height: '100%',
           boxSizing: 'border-box',
           background: '#212121',      // dunkler Hintergrund
-          color: '#ffffffff',
+          color: '#ffffff',
           fontFamily:
             'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           fontSize: 14
@@ -142,11 +142,7 @@ const App: React.FC = () => {
       style={{
         position: 'relative',
         userSelect: 'none',
-        width: '100%',
-        height: '35%',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'flex-start',
+        display: 'inline-block',
         paddingTop: 24,
         background: 'transparent'
       }}
@@ -165,7 +161,7 @@ const App: React.FC = () => {
       />
 
       {/* Halbkreis + Buttons */}
-      <div className="no-drag" style={{ marginTop: 4 }}>
+      <div className="no-drag" style={{ marginTop: 4, marginLeft: 20 }}>
         <RadialMenu
           items={items}
           interactive={interactive}

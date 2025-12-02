@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('focusring', {
   onOverlayState: (cb) =>
     ipcRenderer.on('overlay/state', (_event, state) => cb(state)),
   onTheme: (cb) =>
-    ipcRenderer.on('overlay/theme', (_event, theme) => cb(theme))
+    ipcRenderer.on('overlay/theme', (_event, theme) => cb(theme)),
+  onTimerFired: (cb) =>
+    ipcRenderer.on('timer/fired', (_event, timer) => cb(timer))
 })
 

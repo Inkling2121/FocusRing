@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { invoke } from '../ipc'
+import { invoke, onTimerFired } from '../ipc'
 
 type TimerStatus = 'running' | 'done' | 'cancelled'
 
@@ -35,6 +35,21 @@ const TimerTool: React.FC = () => {
     return () => clearInterval(id)
   }, [])
 
+  useEffect(() => {
+    onTimerFired((firedTimer: Timer) => {
+      console.log('Timer fired event received:', firedTimer)
+      setTimers(prev => {
+        const updated = prev.map(t =>
+          t.id === firedTimer.id
+            ? { ...t, status: 'done' as TimerStatus }
+            : t
+        )
+        console.log('Updated timers:', updated)
+        return updated
+      })
+    })
+  }, [])
+
   const parseIntSafe = (value: string, max: number) => {
     let n = parseInt(value || '0', 10)
     if (Number.isNaN(n) || n < 0) n = 0
@@ -67,7 +82,7 @@ const TimerTool: React.FC = () => {
   const handleDelete = async (timer: Timer) => {
     if (timer.status === 'running') {
       const ok = window.confirm(
-        `Der Timer "${timer.name || 'Ohne Namen'}" laeuft noch. Wirklich löschen?`
+        `Der Timer "${timer.name || 'Ohne Namen'}" läuft noch. Wirklich löschen?`
       )
       if (!ok) return
     }
@@ -141,56 +156,167 @@ const TimerTool: React.FC = () => {
             color: '#e5e7eb'
           }}
         >
-          <input
-            type="number"
-            value={h}
-            onChange={e => setH(e.target.value)}
-            min={0}
-            max={99}
-            style={{
-              width: 42,
-              padding: '4px 6px',
-              borderRadius: 6,
-              border: '1px solid #444',
-              background: 'rgba(20,20,20,0.9)',
-              color: '#f9fafb',
-              textAlign: 'center'
-            }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <button
+              onClick={() => setH(String(Math.min(99, parseIntSafe(h, 99) + 1)))}
+              style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                borderRadius: 4,
+                border: 'none',
+                background: 'rgba(34,197,94,0.15)',
+                color: '#22c55e',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+            >
+              ▲
+            </button>
+            <input
+              type="number"
+              value={h}
+              onChange={e => setH(e.target.value)}
+              min={0}
+              max={99}
+              style={{
+                width: 42,
+                padding: '4px 6px',
+                borderRadius: 6,
+                border: '1px solid #444',
+                background: 'rgba(20,20,20,0.9)',
+                color: '#f9fafb',
+                textAlign: 'center',
+                fontSize: 13
+              }}
+            />
+            <button
+              onClick={() => setH(String(Math.max(0, parseIntSafe(h, 99) - 1)))}
+              style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                borderRadius: 4,
+                border: 'none',
+                background: 'rgba(34,197,94,0.15)',
+                color: '#22c55e',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+            >
+              ▼
+            </button>
+          </div>
           <span>:</span>
-          <input
-            type="number"
-            value={m}
-            onChange={e => setM(e.target.value)}
-            min={0}
-            max={59}
-            style={{
-              width: 42,
-              padding: '4px 6px',
-              borderRadius: 6,
-              border: '1px solid #444',
-              background: 'rgba(20,20,20,0.9)',
-              color: '#f9fafb',
-              textAlign: 'center'
-            }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <button
+              onClick={() => setM(String(Math.min(59, parseIntSafe(m, 59) + 1)))}
+              style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                borderRadius: 4,
+                border: 'none',
+                background: 'rgba(34,197,94,0.15)',
+                color: '#22c55e',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+            >
+              ▲
+            </button>
+            <input
+              type="number"
+              value={m}
+              onChange={e => setM(e.target.value)}
+              min={0}
+              max={59}
+              style={{
+                width: 42,
+                padding: '4px 6px',
+                borderRadius: 6,
+                border: '1px solid #444',
+                background: 'rgba(20,20,20,0.9)',
+                color: '#f9fafb',
+                textAlign: 'center',
+                fontSize: 13
+              }}
+            />
+            <button
+              onClick={() => setM(String(Math.max(0, parseIntSafe(m, 59) - 1)))}
+              style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                borderRadius: 4,
+                border: 'none',
+                background: 'rgba(34,197,94,0.15)',
+                color: '#22c55e',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+            >
+              ▼
+            </button>
+          </div>
           <span>:</span>
-          <input
-            type="number"
-            value={s}
-            onChange={e => setS(e.target.value)}
-            min={0}
-            max={59}
-            style={{
-              width: 42,
-              padding: '4px 6px',
-              borderRadius: 6,
-              border: '1px solid #444',
-              background: 'rgba(20,20,20,0.9)',
-              color: '#f9fafb',
-              textAlign: 'center'
-            }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <button
+              onClick={() => setS(String(Math.min(59, parseIntSafe(s, 59) + 1)))}
+              style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                borderRadius: 4,
+                border: 'none',
+                background: 'rgba(34,197,94,0.15)',
+                color: '#22c55e',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+            >
+              ▲
+            </button>
+            <input
+              type="number"
+              value={s}
+              onChange={e => setS(e.target.value)}
+              min={0}
+              max={59}
+              style={{
+                width: 42,
+                padding: '4px 6px',
+                borderRadius: 6,
+                border: '1px solid #444',
+                background: 'rgba(20,20,20,0.9)',
+                color: '#f9fafb',
+                textAlign: 'center',
+                fontSize: 13
+              }}
+            />
+            <button
+              onClick={() => setS(String(Math.max(0, parseIntSafe(s, 59) - 1)))}
+              style={{
+                padding: '2px 8px',
+                fontSize: 10,
+                borderRadius: 4,
+                border: 'none',
+                background: 'rgba(34,197,94,0.15)',
+                color: '#22c55e',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+            >
+              ▼
+            </button>
+          </div>
         </div>
         <button
           onClick={handleStart}

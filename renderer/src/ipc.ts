@@ -7,6 +7,7 @@ declare global {
       onReminder: (cb: (d: any) => void) => void
       onOverlayState: (cb: (d: any) => void) => void
       onTheme: (cb: (d: any) => void) => void
+      onTimerFired: (cb: (d: any) => void) => void
     }
     electron?: {
       ipcRenderer: {
@@ -53,5 +54,15 @@ export const onOverlayTheme = (cb: (d: any) => void): void => {
   }
   if (hasElec) {
     window.electron!.ipcRenderer.on('overlay/theme', (_e, d) => cb(d))
+  }
+}
+
+export const onTimerFired = (cb: (d: any) => void): void => {
+  if (hasFR) {
+    window.focusring!.onTimerFired(cb)
+    return
+  }
+  if (hasElec) {
+    window.electron!.ipcRenderer.on('timer/fired', (_e, d) => cb(d))
   }
 }

@@ -107,26 +107,14 @@ const Reminders: React.FC = () => {
   }
 
   // gemeinsame Logik fuer Abbrechen / OK:
-  // - scheduled -> Abbrechen: cancel + aus Liste entfernen
-  // - fired / canceled -> OK: aus Liste entfernen, cancel nur wenn nicht already fired
+  // - scheduled -> Abbrechen: cancel und aus DB löschen
+  // - fired / canceled -> OK: aus DB löschen
   const handleAction = async (r: Reminder) => {
-    if (r.status === 'scheduled') {
-      try {
-        await invoke('reminder/cancel', r.id)
-      } catch {
-        // ignore
-      }
+    try {
+      await invoke('reminder/delete', r.id)
       setReminders(prev => prev.filter(x => x.id !== r.id))
-    } else {
-      // schon abgebrochen oder fertig
-      if (r.status !== 'fired') {
-        try {
-          await invoke('reminder/cancel', r.id)
-        } catch {
-          // ignore
-        }
-      }
-      setReminders(prev => prev.filter(x => x.id !== r.id))
+    } catch {
+      // ignore
     }
   }
 

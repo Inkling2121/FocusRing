@@ -20,6 +20,7 @@ const Settings: React.FC = () => {
     accentInactive: '#006625ff'
   })
   const [saving, setSaving] = useState(false)
+  const [recording, setRecording] = useState(false)
 
   useEffect(() => {
     invoke<OverlayConfig>('overlay/getConfig')
@@ -42,6 +43,42 @@ const Settings: React.FC = () => {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleShortcutKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!recording) return
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    // Ignore single modifier keys
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
+      return
+    }
+
+    // Build shortcut string
+    const parts: string[] = []
+    if (e.ctrlKey) parts.push('Control')
+    if (e.altKey) parts.push('Alt')
+    if (e.shiftKey) parts.push('Shift')
+    if (e.metaKey) parts.push('Command')
+
+    // Map key to proper format
+    let key = e.key
+    if (key === ' ') key = 'Space'
+    else if (key.length === 1) key = key.toUpperCase()
+
+    parts.push(key)
+    setShortcut(parts.join('+'))
+    setRecording(false)
+  }
+
+  const handleShortcutFocus = () => {
+    setRecording(true)
+  }
+
+  const handleShortcutBlur = () => {
+    setRecording(false)
   }
 
   return (
@@ -71,15 +108,20 @@ const Settings: React.FC = () => {
         Shortcut (zum Umschalten)
         <input
           type="text"
-          value={shortcut}
-          onChange={e => setShortcut(e.target.value)}
+          value={recording ? 'Drücke Tastenkombination...' : shortcut}
+          readOnly
+          onFocus={handleShortcutFocus}
+          onBlur={handleShortcutBlur}
+          onKeyDown={handleShortcutKeyDown}
           style={{
             padding: 4,
             borderRadius: 6,
-            border: '1px solid #444',
+            border: recording ? `1px solid ${theme.accent}` : '1px solid #444',
             background: 'rgba(20,20,20,0.9)',
-            color: '#fff'
+            color: recording ? theme.accent : '#fff',
+            cursor: 'pointer'
           }}
+          placeholder="Klicke und drücke eine Tastenkombination"
         />
       </label>
 
