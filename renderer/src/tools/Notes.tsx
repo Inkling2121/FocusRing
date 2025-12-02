@@ -27,6 +27,7 @@ const Notes: React.FC = () => {
     try {
       const data = await invoke<Note[]>('notes/list')
       setNotes(data || [])
+      // Nur wenn noch nichts ausgewaehlt ist, automatisch erste Notiz setzen
       if (!selectedId && data && data.length > 0) {
         setSelectedId(data[0].id)
       }
@@ -44,16 +45,23 @@ const Notes: React.FC = () => {
   }
 
   const handleCreate = async () => {
+    if (busy) return
     setBusy(true)
     try {
+      // Neue Notiz im Backend anlegen
       const created = await invoke<Note>('notes/create', {
         title: 'Neue Notiz',
         content: '',
         pinned: 0
       })
-      const withId = created.id ? created : { ...created, id: Date.now() }
-      setNotes(prev => [withId, ...prev])
-      if (withId.id) setSelectedId(withId.id)
+
+      // Liste aus der DB neu laden, damit IDs usw. sicher stimmen
+      await loadNotes()
+
+      // Wenn die API eine ID zurueckgibt, diese Notiz direkt auswaehlen
+      if (created && created.id) {
+        setSelectedId(created.id)
+      }
     } finally {
       setBusy(false)
     }
@@ -64,6 +72,7 @@ const Notes: React.FC = () => {
     setBusy(true)
     try {
       await invoke('notes/delete', selected.id)
+      // State lokal updaten
       setNotes(prev => prev.filter(n => n.id !== selected.id))
       const remaining = notes.filter(n => n.id !== selected.id)
       setSelectedId(remaining[0]?.id)
@@ -75,12 +84,16 @@ const Notes: React.FC = () => {
   const updateNote = async (partial: Partial<Note>) => {
     if (!selected) return
     const updated: Note = { ...selected, ...partial }
+
+    // Optimistisch lokal updaten
     setNotes(prev => prev.map(n => (n.id === updated.id ? updated : n)))
+
     if (!updated.id) return
     try {
       await invoke('notes/update', updated)
     } catch {
-      setNotes(prev => prev)
+      // Im Fehlerfall koenntest du z.B. loadNotes() rufen,
+      // aber wir lassen es hier minimal
     }
   }
 

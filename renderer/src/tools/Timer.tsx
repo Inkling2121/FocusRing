@@ -67,7 +67,7 @@ const TimerTool: React.FC = () => {
   const handleDelete = async (timer: Timer) => {
     if (timer.status === 'running') {
       const ok = window.confirm(
-        `Der Timer "${timer.name || 'Ohne Namen'}" laeuft noch. Wirklich loeschen?`
+        `Der Timer "${timer.name || 'Ohne Namen'}" laeuft noch. Wirklich löschen?`
       )
       if (!ok) return
     }
@@ -288,7 +288,7 @@ const TimerTool: React.FC = () => {
                 flexShrink: 0
               }}
             >
-              Loeschen
+              Löschen
             </button>
           </div>
         ))}

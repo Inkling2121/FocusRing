@@ -27,7 +27,10 @@ const Reminders: React.FC = () => {
       const mapped =
         (data || []).map(r => ({
           ...r,
-          fire_at: typeof r.fire_at === 'string' ? Number(r.fire_at) : Number(r.fire_at)
+          fire_at:
+            typeof r.fire_at === 'string'
+              ? Number(r.fire_at)
+              : Number(r.fire_at)
         })) || []
       setReminders(mapped)
     }
@@ -44,7 +47,16 @@ const Reminders: React.FC = () => {
       setReminders(prev =>
         prev.map(r =>
           r.id === rem.id
-            ? { ...r, status: 'fired', fire_at: rem.fire_at ?? r.fire_at }
+            ? {
+                ...r,
+                status: 'fired',
+                fire_at:
+                  typeof rem.fire_at === 'number'
+                    ? rem.fire_at
+                    : rem.fire_at
+                    ? Number(rem.fire_at)
+                    : r.fire_at
+              }
             : r
         )
       )
@@ -81,8 +93,12 @@ const Reminders: React.FC = () => {
       })
       const mapped = {
         ...created,
-        fire_at: typeof created.fire_at === 'string' ? Number(created.fire_at) : Number(created.fire_at)
+        fire_at:
+          typeof created.fire_at === 'string'
+            ? Number(created.fire_at)
+            : Number(created.fire_at)
       }
+      // direkt im Log sichtbar
       setReminders(prev => [mapped, ...prev])
       setMessage('')
     } finally {
@@ -90,21 +106,42 @@ const Reminders: React.FC = () => {
     }
   }
 
-  const handleCancel = async (r: Reminder) => {
-    if (r.status !== 'scheduled') return
-    await invoke('reminder/cancel', r.id)
-    setReminders(prev =>
-      prev.map(x =>
-        x.id === r.id ? { ...x, status: 'canceled' } : x
-      )
-    )
+  // gemeinsame Logik fuer Abbrechen / OK:
+  // - scheduled -> Abbrechen: cancel + aus Liste entfernen
+  // - fired / canceled -> OK: aus Liste entfernen, cancel nur wenn nicht already fired
+  const handleAction = async (r: Reminder) => {
+    if (r.status === 'scheduled') {
+      try {
+        await invoke('reminder/cancel', r.id)
+      } catch {
+        // ignore
+      }
+      setReminders(prev => prev.filter(x => x.id !== r.id))
+    } else {
+      // schon abgebrochen oder fertig
+      if (r.status !== 'fired') {
+        try {
+          await invoke('reminder/cancel', r.id)
+        } catch {
+          // ignore
+        }
+      }
+      setReminders(prev => prev.filter(x => x.id !== r.id))
+    }
   }
 
   const formatTime = (ts: number) => {
     if (!ts) return '-'
     const d = new Date(ts)
-    const dd = d.toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' })
-    const tt = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    const dd = d.toLocaleDateString(undefined, {
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    const tt = d.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
     return `${dd} ${tt}`
   }
 
@@ -308,17 +345,17 @@ const Reminders: React.FC = () => {
               </span>
             </div>
             <button
-              onClick={() => handleCancel(r)}
-              disabled={r.status !== 'scheduled'}
+              onClick={() => handleAction(r)}
               style={{
                 padding: '4px 10px',
                 borderRadius: 999,
                 border: 'none',
                 background:
-                  r.status === 'scheduled' ? '#ef4444' : 'rgba(75,85,99,0.8)',
+                  r.status === 'scheduled'
+                    ? '#ef4444'
+                    : 'rgba(75,85,99,0.8)',
                 color: '#fff',
-                cursor:
-                  r.status === 'scheduled' ? 'pointer' : 'default',
+                cursor: 'pointer',
                 fontSize: 12,
                 flexShrink: 0
               }}
