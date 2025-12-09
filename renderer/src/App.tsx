@@ -129,7 +129,7 @@ const App: React.FC = () => {
     { id: 'notes', label: 'Notes', onClick: () => invoke('tools/open', 'notes') },
     { id: 'timer', label: 'Timer', onClick: () => invoke('tools/open', 'timer') },
     { id: 'reminder', label: 'Reminder', onClick: () => invoke('tools/open', 'reminder') },
-    { id: 'settings', label: 'Setttings', onClick: () => invoke('tools/open', 'settings') }
+    { id: 'settings', label: 'Settings', onClick: () => invoke('tools/open', 'settings') }
   ]
 
   return (
@@ -161,7 +161,7 @@ const App: React.FC = () => {
       />
 
       {/* Halbkreis + Buttons */}
-      <div className="no-drag" style={{ marginTop: 4, marginLeft: 20 }}>
+      <div className="no-drag" style={{ marginTop: 4, marginLeft: 20, marginRight: 10 }}>
         <RadialMenu
           items={items}
           interactive={interactive}

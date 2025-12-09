@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { invoke, onReminder } from '../ipc'
+import { invoke, onReminder, onSystemResumed } from '../ipc'
 
 type ReminderStatus = 'scheduled' | 'canceled' | 'fired'
 
@@ -21,20 +21,28 @@ const Reminders: React.FC = () => {
   const [now, setNow] = useState(Date.now())
   const [busy, setBusy] = useState(false)
 
+  const loadReminders = async () => {
+    const data = await invoke<Reminder[]>('reminder/list')
+    const mapped =
+      (data || []).map(r => ({
+        ...r,
+        fire_at:
+          typeof r.fire_at === 'string'
+            ? Number(r.fire_at)
+            : Number(r.fire_at)
+      })) || []
+    setReminders(mapped)
+  }
+
   useEffect(() => {
-    const load = async () => {
-      const data = await invoke<Reminder[]>('reminder/list')
-      const mapped =
-        (data || []).map(r => ({
-          ...r,
-          fire_at:
-            typeof r.fire_at === 'string'
-              ? Number(r.fire_at)
-              : Number(r.fire_at)
-        })) || []
-      setReminders(mapped)
-    }
-    load()
+    loadReminders()
+  }, [])
+
+  useEffect(() => {
+    onSystemResumed(() => {
+      // Reload reminders after system wake
+      loadReminders()
+    })
   }, [])
 
   useEffect(() => {
@@ -183,6 +191,7 @@ const Reminders: React.FC = () => {
           value={message}
           onChange={e => setMessage(e.target.value)}
           rows={2}
+          maxLength={500}
           style={{
             resize: 'none',
             padding: '6px 8px',

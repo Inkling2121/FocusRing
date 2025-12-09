@@ -69,6 +69,15 @@ const Notes: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selected?.id) return
+
+    // Only confirm if note has content
+    if (selected.content.trim() || selected.title.trim()) {
+      const ok = window.confirm(
+        `Notiz "${selected.title || 'Ohne Titel'}" wirklich löschen?`
+      )
+      if (!ok) return
+    }
+
     setBusy(true)
     try {
       await invoke('notes/delete', selected.id)
@@ -320,6 +329,7 @@ const Notes: React.FC = () => {
                 value={selected.title}
                 onChange={e => handleTitleChange(e.target.value)}
                 placeholder="Titel"
+                maxLength={200}
                 style={{
                   flex: 1,
                   padding: '6px 8px',

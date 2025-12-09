@@ -1,12 +1,27 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, Notification } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, Notification, powerMonitor } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { ensureDb, notesRepo, timersRepo, remindersRepo, settingsRepo, windowRepo } from './db.js'
-import { startScheduler, scheduleReminder, cancelReminder } from './scheduler.js'
+import { ensureDb, notesRepo, timersRepo, remindersRepo, settingsRepo, windowRepo, toolWindowRepo } from './db.js'
+import { startScheduler, scheduleReminder, cancelReminder, rescheduleAll } from './scheduler.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const activeTimers = new Map()
+
+// Single instance lock
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // Someone tried to run a second instance, focus our window instead
+    if (overlayWin) {
+      if (overlayWin.isMinimized()) overlayWin.restore()
+      overlayWin.focus()
+    }
+  })
+}
 
 let overlayWin       // kleines Overlay mit RadialMenu
 let toolWin          // eigenes Fenster fuer Tools (Notizen usw.)
@@ -53,7 +68,7 @@ const createOverlayWindow = async () => {
   const state = windowRepo.get()
 
   overlayWin = new BrowserWindow({
-    width: state?.width || 230,
+    width: state?.width || 270,
     height: state?.height || 130,
     x: state?.pos_x,
     y: state?.pos_y,
@@ -89,7 +104,11 @@ const createOverlayWindow = async () => {
 
   // scheduler fuer reminder (Overlay ist unser "Main"-Fenster)
   startScheduler((rem) => {
-    new Notification({ title: 'Reminder', body: rem.message }).show()
+    const notification = new Notification({ title: 'Reminder', body: rem.message })
+    notification.on('click', () => {
+      openToolWindow('reminder')
+    })
+    notification.show()
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.webContents.send('scheduler/reminderFired', rem)
     }
@@ -155,16 +174,34 @@ const registerShortcut = () => {
 }
 
 const scheduleTimer = (timer) => {
-  if (!timer || timer.status !== 'running' || !timer.id) return
+  if (!timer || !timer.id) return
+
+  // Clear existing timer if any
+  const existing = activeTimers.get(timer.id)
+  if (existing) clearTimeout(existing)
+
+  // Don't schedule if paused
+  if (timer.status === 'paused') {
+    activeTimers.delete(timer.id)
+    return
+  }
+
+  if (timer.status !== 'running') return
+
   const now = Date.now()
   const delay = timer.targetAt - now
+
   if (delay <= 0) {
-    const finished = { ...timer, status: 'done' }
+    const finished = { ...timer, status: 'done', remainingMs: 0 }
     timersRepo.update(finished)
     activeTimers.delete(timer.id)
     const title = timer.name ? `Timer: ${timer.name}` : 'Timer abgelaufen'
     const body = timer.name ? `Dein Timer "${timer.name}" ist abgelaufen.` : 'Dein Timer ist fertig.'
-    new Notification({ title, body }).show()
+    const notification = new Notification({ title, body })
+    notification.on('click', () => {
+      openToolWindow('timer')
+    })
+    notification.show()
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.webContents.send('timer/fired', finished)
     }
@@ -173,23 +210,23 @@ const scheduleTimer = (timer) => {
     }
     return
   }
-  const existing = activeTimers.get(timer.id)
-  if (existing) clearTimeout(existing)
+
   const handle = setTimeout(() => {
-    const finished = { ...timer, status: 'done' }
+    const finished = { ...timer, status: 'done', remainingMs: 0 }
     timersRepo.update(finished)
     activeTimers.delete(timer.id)
     const title = timer.name ? `Timer: ${timer.name}` : 'Timer abgelaufen'
     const body = timer.name ? `Dein Timer "${timer.name}" ist abgelaufen.` : 'Dein Timer ist fertig.'
-    new Notification({ title, body }).show()
-    console.log('Timer fired, sending event:', finished)
+    const notification = new Notification({ title, body })
+    notification.on('click', () => {
+      openToolWindow('timer')
+    })
+    notification.show()
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.webContents.send('timer/fired', finished)
-      console.log('Sent timer/fired to overlayWin')
     }
     if (toolWin && !toolWin.isDestroyed()) {
       toolWin.webContents.send('timer/fired', finished)
-      console.log('Sent timer/fired to toolWin')
     }
   }, delay)
   activeTimers.set(timer.id, handle)
@@ -203,9 +240,11 @@ const restoreTimers = () => {
       if (t.targetAt && t.targetAt > now) {
         scheduleTimer(t)
       } else {
-        const finished = { ...t, status: 'done' }
+        const finished = { ...t, status: 'done', remainingMs: 0 }
         timersRepo.update(finished)
       }
+    } else if (t.status === 'paused') {
+      // Paused timers don't need scheduling, just leave them
     }
   })
 }
@@ -216,25 +255,44 @@ const openToolWindow = async (toolId) => {
   const search = `?tool=${encodeURIComponent(toolId)}`
 
   if (!toolWin || toolWin.isDestroyed()) {
+    // Load saved position for this tool
+    const saved = toolWindowRepo.get(toolId)
+
     toolWin = new BrowserWindow({
-  width: 600,
-  height: 420,
-  resizable: true,
-  alwaysOnTop: false,
-  transparent: false,
-  frame: true,
-  backgroundColor: '#181818',
-  autoHideMenuBar: true,
-  webPreferences: {
-    preload: path.join(__dirname, 'preload.cjs'),
-    contextIsolation: true,
-    sandbox: false
-  }
-})
+      width: saved?.width || 600,
+      height: saved?.height || 420,
+      x: saved?.pos_x,
+      y: saved?.pos_y,
+      resizable: true,
+      alwaysOnTop: false,
+      transparent: false,
+      frame: true,
+      backgroundColor: '#181818',
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.cjs'),
+        contextIsolation: true,
+        sandbox: false
+      }
+    })
 
+    let currentToolId = toolId
 
+    const saveBoundsForTool = () => {
+      if (!toolWin || toolWin.isDestroyed()) return
+      const b = toolWin.getBounds()
+      toolWindowRepo.set(currentToolId, { x: b.x, y: b.y, width: b.width, height: b.height })
+    }
+
+    toolWin.on('move', saveBoundsForTool)
+    toolWin.on('resize', saveBoundsForTool)
     toolWin.on('closed', () => {
       toolWin = null
+    })
+
+    // Store the tool ID so we can track which tool is open
+    toolWin.on('page-title-updated', () => {
+      // Update currentToolId when the tool changes (if we reuse the window)
     })
   }
 
@@ -255,6 +313,26 @@ app.whenReady().then(async () => {
     await createOverlayWindow()
     registerShortcut()
     restoreTimers()
+
+    // Handle system sleep/wake for timers and reminders
+    powerMonitor.on('suspend', () => {
+      console.log('System is going to sleep')
+    })
+
+    powerMonitor.on('resume', () => {
+      console.log('System woke up from sleep')
+      // Recalculate all timers
+      restoreTimers()
+      // Reschedule all reminders
+      rescheduleAll()
+      // Notify renderer to refresh
+      if (overlayWin && !overlayWin.isDestroyed()) {
+        overlayWin.webContents.send('system/resumed')
+      }
+      if (toolWin && !toolWin.isDestroyed()) {
+        toolWin.webContents.send('system/resumed')
+      }
+    })
   } catch (error) {
     console.error(error)
   }
@@ -384,8 +462,50 @@ ipcMain.handle('timer/cancel', (_e, id) => {
     clearTimeout(existing)
     activeTimers.delete(id)
   }
-  const updated = { ...timer, status: 'cancelled' }
+  const updated = { ...timer, status: 'cancelled', remainingMs: 0 }
   timersRepo.update(updated)
+  return updated
+})
+
+ipcMain.handle('timer/pause', (_e, id) => {
+  if (!id) return
+  const list = timersRepo.list() || []
+  const timer = list.find(t => t.id === id)
+  if (!timer || timer.status !== 'running') return timer
+
+  // Calculate remaining time
+  const now = Date.now()
+  const remainingMs = Math.max(0, timer.targetAt - now)
+
+  // Clear the scheduled timeout
+  const existing = activeTimers.get(id)
+  if (existing) {
+    clearTimeout(existing)
+    activeTimers.delete(id)
+  }
+
+  // Update to paused state
+  const updated = { ...timer, status: 'paused', remainingMs, pausedAt: now }
+  timersRepo.update(updated)
+  return updated
+})
+
+ipcMain.handle('timer/resume', (_e, id) => {
+  if (!id) return
+  const list = timersRepo.list() || []
+  const timer = list.find(t => t.id === id)
+  if (!timer || timer.status !== 'paused') return timer
+
+  // Resume with remaining time
+  const now = Date.now()
+  const updated = {
+    ...timer,
+    status: 'running',
+    targetAt: now + (timer.remainingMs || 0),
+    pausedAt: null
+  }
+  timersRepo.update(updated)
+  scheduleTimer(updated)
   return updated
 })
 

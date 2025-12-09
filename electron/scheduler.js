@@ -36,3 +36,21 @@ export const scheduleReminder = (r) => {
 export const cancelReminder = (id) => {
   clearPending(id)
 }
+
+export const rescheduleAll = () => {
+  // Clear all pending timers
+  pending.forEach((t, id) => clearTimeout(t))
+  pending.clear()
+
+  // Reschedule all active reminders
+  const list = remindersRepo.list().filter(r => r.status === 'scheduled')
+  const now = Date.now()
+  for (const r of list) {
+    if (r.fire_at > now) {
+      scheduleReminder(r)
+    } else {
+      // Already passed, mark as fired immediately
+      remindersRepo.fired(r.id)
+    }
+  }
+}

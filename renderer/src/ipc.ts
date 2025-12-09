@@ -66,3 +66,9 @@ export const onTimerFired = (cb: (d: any) => void): void => {
     window.electron!.ipcRenderer.on('timer/fired', (_e, d) => cb(d))
   }
 }
+
+export const onSystemResumed = (cb: () => void): void => {
+  if (hasElec) {
+    window.electron!.ipcRenderer.on('system/resumed', () => cb())
+  }
+}

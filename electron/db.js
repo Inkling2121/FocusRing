@@ -27,10 +27,27 @@ export const ensureDb = async () => {
   db.exec(`
     create table if not exists app_settings (key text primary key, value text);
     create table if not exists windows_state (id integer primary key, pos_x integer, pos_y integer, width integer, height integer, overlay_mode text);
+    create table if not exists tool_windows (tool_id text primary key, pos_x integer, pos_y integer, width integer, height integer);
     create table if not exists notes (id integer primary key, title text, content text, pinned integer, pos_x integer, pos_y integer, width integer, height integer, updated_at text);
-    create table if not exists timers (id integer primary key, label text, duration_ms integer, elapsed_ms integer, state text, updated_at text);
+    create table if not exists timers (id integer primary key, label text, duration_ms integer, remaining_ms integer, state text, paused_at integer, updated_at text);
     create table if not exists reminders (id integer primary key, message text, fire_at integer, status text, created_at text);
   `)
+
+  // Migration: Add remaining_ms and paused_at columns if they don't exist
+  try {
+    db.exec(`alter table timers add column remaining_ms integer`)
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`alter table timers add column paused_at integer`)
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Migrate old timers: set remaining_ms = duration_ms for existing running timers
+  db.exec(`update timers set remaining_ms = duration_ms where remaining_ms is null and state = 'running'`)
+  db.exec(`update timers set remaining_ms = 0 where remaining_ms is null`)
 
   persist()
   console.log('DB:', dbFile())
@@ -60,14 +77,18 @@ export const notesRepo = {
 const mapTimerRow = (row) => {
   if (!row) return null
   const durMs = row.duration_ms || 0
+  const remainingMs = row.remaining_ms !== null && row.remaining_ms !== undefined ? row.remaining_ms : durMs
   const totalSeconds = Math.floor(durMs / 1000)
   const baseTime = row.updated_at ? new Date(row.updated_at).getTime() : Date.now()
-  const targetAt = baseTime + durMs
+  const targetAt = baseTime + remainingMs
+  const pausedAt = row.paused_at || null
   return {
     id: row.id,
     name: row.label || '',
     totalSeconds,
+    remainingMs,
     targetAt,
+    pausedAt,
     status: row.state || 'idle'
   }
 }
@@ -81,8 +102,8 @@ export const timersRepo = {
     const now = new Date().toISOString()
     const durMs = (t.totalSeconds || 0) * 1000
     const id = runAndGetId(
-      'insert into timers(label,duration_ms,elapsed_ms,state,updated_at) values(?,?,?,?,?)',
-      [t.name || '', durMs, 0, t.status || 'running', now]
+      'insert into timers(label,duration_ms,remaining_ms,state,paused_at,updated_at) values(?,?,?,?,?,?)',
+      [t.name || '', durMs, durMs, t.status || 'running', null, now]
     )
     const row = one('select * from timers where id=?', [id])
     return mapTimerRow(row)
@@ -90,9 +111,11 @@ export const timersRepo = {
   update: (t) => {
     const now = new Date().toISOString()
     const durMs = (t.totalSeconds || 0) * 1000
+    const remainingMs = t.remainingMs !== undefined ? t.remainingMs : durMs
+    const pausedAt = t.pausedAt !== undefined ? t.pausedAt : null
     run(
-      'update timers set label=?,duration_ms=?,elapsed_ms=?,state=?,updated_at=? where id=?',
-      [t.name || '', durMs, 0, t.status || 'idle', now, t.id]
+      'update timers set label=?,duration_ms=?,remaining_ms=?,state=?,paused_at=?,updated_at=? where id=?',
+      [t.name || '', durMs, remainingMs, t.status || 'idle', pausedAt, now, t.id]
     )
     const row = one('select * from timers where id=?', [t.id])
     return mapTimerRow(row)
@@ -109,4 +132,15 @@ export const remindersRepo = {
   cancel: (id) => { run('update reminders set status=? where id=?',['canceled',id]); return true },
   fired: (id) => { run('update reminders set status=? where id=?',['fired',id]) },
   remove: (id) => { run('delete from reminders where id=?', [id]); return true }
+}
+
+export const toolWindowRepo = {
+  get: (toolId) => one('select * from tool_windows where tool_id=?', [toolId]) || null,
+  set: (toolId, bounds) => {
+    run(
+      'insert into tool_windows(tool_id,pos_x,pos_y,width,height) values(?,?,?,?,?) on conflict(tool_id) do update set pos_x=excluded.pos_x,pos_y=excluded.pos_y,width=excluded.width,height=excluded.height',
+      [toolId, bounds.x, bounds.y, bounds.width, bounds.height]
+    )
+    return true
+  }
 }

@@ -231,6 +231,12 @@ Noah Wirth
 - Fixed issue where transparent HTML elements blocked clicks in interactive mode
 - Window now only as large as actual content, minimizing screen space usage
 
+**9. Overlay Width Adjustment**
+- Increased overlay window width from 230px to 250px (`electron/main.js:71`)
+- Added `marginRight: 10` to RadialMenu container (`App.tsx:164`)
+- Fixed issue where right button was slightly cut off
+- Better visual balance and button visibility
+
 ### Critical Fixes Applied
 
 **Database ID Retrieval Pattern**

@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { invoke, onTimerFired } from '../ipc'
+import { invoke, onTimerFired, onSystemResumed } from '../ipc'
 
-type TimerStatus = 'running' | 'done' | 'cancelled'
+type TimerStatus = 'running' | 'paused' | 'done' | 'cancelled'
 
 type Timer = {
   id: number
   name: string
   totalSeconds: number
+  remainingMs: number
   targetAt: number
+  pausedAt?: number | null
   status: TimerStatus
 }
 
@@ -22,12 +24,20 @@ const TimerTool: React.FC = () => {
   const [now, setNow] = useState(Date.now())
   const [busy, setBusy] = useState(false)
 
+  const loadTimers = async () => {
+    const data = await invoke<Timer[]>('timer/list')
+    setTimers(data || [])
+  }
+
   useEffect(() => {
-    const load = async () => {
-      const data = await invoke<Timer[]>('timer/list')
-      setTimers(data || [])
-    }
-    load()
+    loadTimers()
+  }, [])
+
+  useEffect(() => {
+    onSystemResumed(() => {
+      // Reload timers after system wake
+      loadTimers()
+    })
   }, [])
 
   useEffect(() => {
@@ -79,10 +89,33 @@ const TimerTool: React.FC = () => {
     }
   }
 
+  const handlePreset = (minutes: number, presetName: string) => {
+    setH('0')
+    setM(String(minutes))
+    setS('0')
+    if (!name.trim()) {
+      setName(presetName)
+    }
+  }
+
+  const handlePause = async (timer: Timer) => {
+    const updated = await invoke<Timer>('timer/pause', timer.id)
+    if (updated) {
+      setTimers(prev => prev.map(t => t.id === timer.id ? updated : t))
+    }
+  }
+
+  const handleResume = async (timer: Timer) => {
+    const updated = await invoke<Timer>('timer/resume', timer.id)
+    if (updated) {
+      setTimers(prev => prev.map(t => t.id === timer.id ? updated : t))
+    }
+  }
+
   const handleDelete = async (timer: Timer) => {
-    if (timer.status === 'running') {
+    if (timer.status === 'running' || timer.status === 'paused') {
       const ok = window.confirm(
-        `Der Timer "${timer.name || 'Ohne Namen'}" läuft noch. Wirklich löschen?`
+        `Der Timer "${timer.name || 'Ohne Namen'}" ${timer.status === 'running' ? 'läuft noch' : 'ist pausiert'}. Wirklich löschen?`
       )
       if (!ok) return
     }
@@ -93,6 +126,15 @@ const TimerTool: React.FC = () => {
   const formatRemaining = (timer: Timer): string => {
     if (timer.status === 'cancelled') return 'Abgebrochen'
     if (timer.status === 'done') return 'Fertig'
+    if (timer.status === 'paused') {
+      // Show remaining time when paused
+      const total = Math.floor((timer.remainingMs || 0) / 1000)
+      const hh = Math.floor(total / 3600)
+      const mm = Math.floor((total % 3600) / 60)
+      const ss = total % 60
+      const pad = (n: number, len: number = 2) => String(n).padStart(len, '0')
+      return `⏸ ${pad(hh, 2)}:${pad(mm, 2)}:${pad(ss, 2)}`
+    }
     const diffMs = timer.targetAt - now
     if (diffMs <= 0) return 'Fertig'
     const total = Math.floor(diffMs / 1000)
@@ -108,6 +150,11 @@ const TimerTool: React.FC = () => {
       timers
         .slice()
         .sort((a, b) => {
+          // Running first, then paused, then others
+          const aActive = a.status === 'running' || a.status === 'paused'
+          const bActive = b.status === 'running' || b.status === 'paused'
+          if (aActive && !bActive) return -1
+          if (bActive && !aActive) return 1
           if (a.status === 'running' && b.status !== 'running') return -1
           if (b.status === 'running' && a.status !== 'running') return 1
           return (b.id || 0) - (a.id || 0)
@@ -125,6 +172,74 @@ const TimerTool: React.FC = () => {
         boxSizing: 'border-box'
       }}
     >
+      {/* Quick Presets */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }}
+      >
+        <span style={{ fontSize: 12, opacity: 0.7, marginRight: 4 }}>Schnellauswahl:</span>
+        <button
+          onClick={() => handlePreset(5, 'Kurze Pause')}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 999,
+            border: `1px solid ${accent}`,
+            background: 'rgba(34,197,94,0.1)',
+            color: accent,
+            cursor: 'pointer',
+            fontSize: 11
+          }}
+        >
+          5 Min
+        </button>
+        <button
+          onClick={() => handlePreset(15, 'Fokus-Session')}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 999,
+            border: `1px solid ${accent}`,
+            background: 'rgba(34,197,94,0.1)',
+            color: accent,
+            cursor: 'pointer',
+            fontSize: 11
+          }}
+        >
+          15 Min
+        </button>
+        <button
+          onClick={() => handlePreset(30, 'Arbeits-Block')}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 999,
+            border: `1px solid ${accent}`,
+            background: 'rgba(34,197,94,0.1)',
+            color: accent,
+            cursor: 'pointer',
+            fontSize: 11
+          }}
+        >
+          30 Min
+        </button>
+        <button
+          onClick={() => handlePreset(60, 'Volle Stunde')}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 999,
+            border: `1px solid ${accent}`,
+            background: 'rgba(34,197,94,0.1)',
+            color: accent,
+            cursor: 'pointer',
+            fontSize: 11
+          }}
+        >
+          1 Std
+        </button>
+      </div>
+
       <div
         style={{
           display: 'flex',
@@ -137,6 +252,7 @@ const TimerTool: React.FC = () => {
           placeholder="Name des Timers"
           value={name}
           onChange={e => setName(e.target.value)}
+          maxLength={100}
           style={{
             flex: 1,
             padding: '6px 8px',
@@ -362,11 +478,11 @@ const TimerTool: React.FC = () => {
               borderRadius: 8,
               marginBottom: 4,
               background:
-                t.status === 'running'
+                t.status === 'running' || t.status === 'paused'
                   ? 'rgba(34,197,94,0.08)'
                   : 'rgba(15,15,15,0.7)',
               border:
-                t.status === 'running'
+                t.status === 'running' || t.status === 'paused'
                   ? `1px solid ${accent}`
                   : '1px solid #2f3135'
             }}
@@ -401,21 +517,54 @@ const TimerTool: React.FC = () => {
                 {formatRemaining(t)}
               </span>
             </div>
-            <button
-              onClick={() => handleDelete(t)}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: 'none',
-                background: '#ef4444',
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: 12,
-                flexShrink: 0
-              }}
-            >
-              Löschen
-            </button>
+            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              {t.status === 'running' && (
+                <button
+                  onClick={() => handlePause(t)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    border: `1px solid ${accent}`,
+                    background: 'transparent',
+                    color: accent,
+                    cursor: 'pointer',
+                    fontSize: 12
+                  }}
+                >
+                  Pause
+                </button>
+              )}
+              {t.status === 'paused' && (
+                <button
+                  onClick={() => handleResume(t)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: accent,
+                    color: '#0b1120',
+                    cursor: 'pointer',
+                    fontSize: 12
+                  }}
+                >
+                  Resume
+                </button>
+              )}
+              <button
+                onClick={() => handleDelete(t)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: '#ef4444',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 12
+                }}
+              >
+                Löschen
+              </button>
+            </div>
           </div>
         ))}
       </div>
