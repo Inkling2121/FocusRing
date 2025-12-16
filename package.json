@@ -13,6 +13,7 @@
   "build": {
     "appId": "ch.noahwirth.focusring",
     "productName": "FocusRing",
+    "publish": null,
     "files": [
       "dist/**",
       "electron/**",
