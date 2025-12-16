@@ -1,7 +1,11 @@
 import path from 'path'
 import { app } from 'electron'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
 import initSqlJs from 'sql.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 let SQL
 let db
@@ -16,7 +20,15 @@ const persist = () => {
 }
 
 export const ensureDb = async () => {
-  SQL = await initSqlJs({ locateFile: f => path.join(process.cwd(), 'node_modules/sql.js/dist', f) })
+  // In production (asar), use path relative to the electron directory
+  // In dev, use node_modules
+  const wasmPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'sql.js', 'dist')
+    : path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist')
+
+  SQL = await initSqlJs({
+    locateFile: f => path.join(wasmPath, f)
+  })
   if (fs.existsSync(dbFile())) {
     const buf = fs.readFileSync(dbFile())
     db = new SQL.Database(new Uint8Array(buf))

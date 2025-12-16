@@ -8,6 +8,7 @@ declare global {
       onOverlayState: (cb: (d: any) => void) => void
       onTheme: (cb: (d: any) => void) => void
       onTimerFired: (cb: (d: any) => void) => void
+      onFirstLaunch: (cb: (d: any) => void) => void
     }
     electron?: {
       ipcRenderer: {
@@ -70,5 +71,15 @@ export const onTimerFired = (cb: (d: any) => void): void => {
 export const onSystemResumed = (cb: () => void): void => {
   if (hasElec) {
     window.electron!.ipcRenderer.on('system/resumed', () => cb())
+  }
+}
+
+export const onFirstLaunch = (cb: (d: { shortcut: string }) => void): void => {
+  if (hasFR) {
+    window.focusring!.onFirstLaunch(cb)
+    return
+  }
+  if (hasElec) {
+    window.electron!.ipcRenderer.on('overlay/firstLaunch', (_e, d) => cb(d))
   }
 }

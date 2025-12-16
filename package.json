@@ -1,11 +1,12 @@
 {
   "name": "focusring",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "FocusRing – Desktop Overlay fuer Notizen/Timer/Reminder",
   "main": "electron/main.js",
+  "type": "module",
   "author": "Noah Wirth",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV=1 electron .\"",
+    "dev": "concurrently -k \"vite\" \"cross-env VITE_DEV=1 electron .\"",
     "build:renderer": "vite build",
     "build": "npm run build:renderer",
     "dist": "npm run build:renderer && electron-builder"
@@ -17,8 +18,11 @@
     "files": [
       "dist/**",
       "electron/**",
-      "node_modules/**",
+      "node_modules/sql.js/**",
       "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/sql.js/dist/*.wasm"
     ],
     "directories": {
       "buildResources": "build"

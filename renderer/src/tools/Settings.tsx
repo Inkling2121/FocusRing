@@ -4,22 +4,27 @@ import { invoke } from '../ipc'
 type Theme = {
   accent: string
   accentInactive: string
+  textColor?: string
 }
 
 type OverlayConfig = {
   autoTimeoutSec: number
   shortcut?: string
   theme?: Partial<Theme>
+  autoRevertEnabled?: boolean
 }
 
 const Settings: React.FC = () => {
   const [sec, setSec] = useState<number>(8)
   const [shortcut, setShortcut] = useState('Control+Alt+Space')
+  const [autoRevertEnabled, setAutoRevertEnabled] = useState(false)
   const [theme, setTheme] = useState<Theme>({
     accent: '#00ab3fff',
-    accentInactive: '#006625ff'
+    accentInactive: '#006625ff',
+    textColor: '#ffffff'
   })
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [recording, setRecording] = useState(false)
 
   useEffect(() => {
@@ -29,6 +34,7 @@ const Settings: React.FC = () => {
           if (typeof cfg.autoTimeoutSec === 'number') setSec(cfg.autoTimeoutSec)
           if (cfg.shortcut) setShortcut(cfg.shortcut)
           if (cfg.theme) setTheme(prev => ({ ...prev, ...cfg.theme! }))
+          if (typeof cfg.autoRevertEnabled === 'boolean') setAutoRevertEnabled(cfg.autoRevertEnabled)
         }
       })
       .catch(() => { })
@@ -36,10 +42,15 @@ const Settings: React.FC = () => {
 
   const save = async () => {
     setSaving(true)
+    setSaved(false)
     try {
+      await invoke('overlay/setAutoRevert', autoRevertEnabled)
       await invoke('overlay/setAutoTimeout', sec)
       await invoke('overlay/setShortcut', shortcut)
       await invoke('overlay/setTheme', theme)
+      setSaved(true)
+      // Feedback nach 2 Sekunden ausblenden
+      setTimeout(() => setSaved(false), 2000)
     } finally {
       setSaving(false)
     }
@@ -85,23 +96,37 @@ const Settings: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 260, height: '100%', boxSizing: 'border-box' }}>
       <h2 style={{ margin: 0, fontSize: 16 }}>Einstellungen</h2>
 
-      {/* Cooldown */}
-      <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        Automatisches Zurückschalten (Sekunden)
+      {/* Auto-Revert Toggle */}
+      <label style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
         <input
-          type="number"
-          min={1}
-          value={sec}
-          onChange={e => setSec(parseInt(e.target.value, 10) || 1)}
-          style={{
-            padding: 4,
-            borderRadius: 6,
-            border: '1px solid #444',
-            background: 'rgba(20,20,20,0.9)',
-            color: '#fff'
-          }}
+          type="checkbox"
+          checked={autoRevertEnabled}
+          onChange={e => setAutoRevertEnabled(e.target.checked)}
+          style={{ cursor: 'pointer' }}
         />
+        Automatisches Zurückschalten aktivieren
       </label>
+
+      {/* Cooldown - nur sichtbar wenn auto-revert aktiviert */}
+      {autoRevertEnabled && (
+        <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4, marginLeft: 24 }}>
+          Timeout (Sekunden)
+          <input
+            type="number"
+            min={1}
+            value={sec}
+            onChange={e => setSec(parseInt(e.target.value, 10) || 1)}
+            style={{
+              padding: 4,
+              borderRadius: 6,
+              border: '1px solid #444',
+              background: 'rgba(20,20,20,0.9)',
+              color: '#fff',
+              width: 80
+            }}
+          />
+        </label>
+      )}
 
       {/* Shortcut */}
       <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -146,23 +171,52 @@ const Settings: React.FC = () => {
         />
       </label>
 
-      <button
-        onClick={save}
-        disabled={saving}
-        style={{
-          alignSelf: 'flex-start',
-          padding: '6px 14px',
-          borderRadius: 999,
-          border: 'none',
-          background: '#22c55e',
-          color: '#000000ff',
-          cursor: 'pointer',
-          opacity: saving ? 0.7 : 1,
-          marginTop: 8
-        }}
-      >
-        {saving ? 'Speichere…' : 'Speichern'}
-      </button>
+      <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        Textfarbe (Overlay)
+        <input
+          type="color"
+          value={theme.textColor || '#ffffff'}
+          onChange={e => setTheme(t => ({ ...t, textColor: e.target.value }))}
+          style={{ width: 40, height: 24, border: 'none', background: 'transparent', cursor: 'pointer' }}
+        />
+      </label>
+
+      <div style={{ position: 'relative', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={save}
+          disabled={saving}
+          style={{
+            padding: '6px 14px',
+            borderRadius: 999,
+            border: 'none',
+            background: '#22c55e',
+            color: '#000000ff',
+            cursor: 'pointer',
+            opacity: saving ? 0.7 : 1
+          }}
+        >
+          {saving ? 'Speichere…' : 'Speichern'}
+        </button>
+
+        {/* Save Feedback */}
+        {saved && (
+          <div
+            style={{
+              background: '#22c55e',
+              color: '#000',
+              padding: '6px 12px',
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+              animation: 'slideIn 0.2s ease-out',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            ✓ Gespeichert!
+          </div>
+        )}
+      </div>
     </div>
   )
 }

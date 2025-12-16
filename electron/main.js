@@ -1,12 +1,48 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, Notification, powerMonitor } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 import { ensureDb, notesRepo, timersRepo, remindersRepo, settingsRepo, windowRepo, toolWindowRepo } from './db.js'
 import { startScheduler, scheduleReminder, cancelReminder, rescheduleAll } from './scheduler.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const activeTimers = new Map()
+
+// Setup file logging
+const logPath = path.join(app.getPath('userData'), 'debug.log')
+const logStream = fs.createWriteStream(logPath, { flags: 'a' })
+
+function log(...args) {
+  const msg = `[${new Date().toISOString()}] ${args.join(' ')}`
+  console.log(...args)
+  logStream.write(msg + '\n')
+}
+
+function logError(...args) {
+  const msg = `[${new Date().toISOString()}] ERROR: ${args.join(' ')}`
+  console.error(...args)
+  logStream.write(msg + '\n')
+}
+
+// Catch all unhandled errors
+process.on('uncaughtException', (error) => {
+  logError('Uncaught Exception:', error)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  logError('Unhandled Rejection at:', promise, 'reason:', reason)
+})
+
+log('=== FocusRing Starting ===')
+log('App path:', app.getAppPath())
+log('User data path:', app.getPath('userData'))
+log('Log file:', logPath)
+
+// Set App User Model ID for Windows notifications
+if (process.platform === 'win32') {
+  app.setAppUserModelId('ch.noahwirth.focusring')
+}
 
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock()
@@ -25,18 +61,29 @@ if (!gotTheLock) {
 
 let overlayWin       // kleines Overlay mit RadialMenu
 let toolWin          // eigenes Fenster fuer Tools (Notizen usw.)
-let interactive = false          // default: clickthrough
+let interactive = true           // default: interactive (manuell umschalten)
 let autoRevertTimer = null
+let autoRevertEnabled = false    // default: AUS (manuelles Umschalten)
 let autoTimeoutSec = 8           // default, wird aus Settings geladen
 let shortcut = 'Control+Alt+Space' // default shortcut, kann geaendert werden
 
 let theme = {
   accent: '#22c55e',         // Haupt-Akzent (Buttons, Glow)
   accentInactive: '#16a34a', // Akzent im Clickthrough-Modus
+  textColor: '#ffffff'       // Text-Farbe im Overlay
 }
 
 const createOverlayWindow = async () => {
+  log('Creating overlay window...')
   await ensureDb()
+  log('Database initialized')
+
+    // auto-revert enabled aus settings laden
+  const autoRevertSetting = settingsRepo.get('overlay_auto_revert_enabled')
+  if (autoRevertSetting !== null) {
+    autoRevertEnabled = autoRevertSetting === 'true'
+    log('Auto-revert enabled:', autoRevertEnabled)
+  }
 
     // auto-timeout aus settings laden
   const timeoutSetting = settingsRepo.get('overlay_auto_timeout_s')
@@ -44,6 +91,7 @@ const createOverlayWindow = async () => {
     const parsed = parseInt(timeoutSetting, 10)
     if (!Number.isNaN(parsed) && parsed > 0) {
       autoTimeoutSec = parsed
+      log('Auto-timeout:', autoTimeoutSec)
     }
   }
 
@@ -51,6 +99,7 @@ const createOverlayWindow = async () => {
   const shortcutSetting = settingsRepo.get('overlay_shortcut')
   if (shortcutSetting && typeof shortcutSetting === 'string' && shortcutSetting.trim().length > 0) {
     shortcut = shortcutSetting.trim()
+    log('Shortcut:', shortcut)
   }
 
   // 🎨 Theme aus Settings laden
@@ -59,19 +108,45 @@ const createOverlayWindow = async () => {
     try {
       const parsed = JSON.parse(themeSetting)
       theme = { ...theme, ...parsed }
+      log('Theme loaded:', JSON.stringify(theme))
     } catch (e) {
-      console.warn('invalid overlay_theme in settings', e)
+      logError('invalid overlay_theme in settings', e)
     }
   }
 
 
   const state = windowRepo.get()
+  log('Window state from DB:', state)
+
+  // Validate window position is on a visible screen
+  let x = state?.pos_x
+  let y = state?.pos_y
+
+  if (x !== undefined && y !== undefined) {
+    const { screen } = require('electron')
+    const displays = screen.getAllDisplays()
+    log('Checking if position', x, y, 'is on screen. Displays:', displays.length)
+    const isOnScreen = displays.some(display => {
+      const { x: dx, y: dy, width, height } = display.bounds
+      return x >= dx && x < dx + width && y >= dy && y < dy + height
+    })
+
+    if (!isOnScreen) {
+      log('Saved position is off-screen, using default position')
+      x = undefined
+      y = undefined
+    } else {
+      log('Position is valid')
+    }
+  }
+
+  log('Creating BrowserWindow with size:', state?.width || 250, 'x', state?.height || 130, 'at', x, y)
 
   overlayWin = new BrowserWindow({
-    width: state?.width || 270,
+    width: state?.width || 250,
     height: state?.height || 130,
-    x: state?.pos_x,
-    y: state?.pos_y,
+    x: x,
+    y: y,
     frame: false,
     transparent: true,
     resizable: false,
@@ -82,47 +157,84 @@ const createOverlayWindow = async () => {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
-      sandbox: false
+      sandbox: false,
+      cache: false
     }
   })
 
+  log('BrowserWindow created')
+
   // Show window when ready
   overlayWin.once('ready-to-show', () => {
-    console.log('Overlay window ready, showing now')
+    log('Overlay window ready, showing now')
+    const bounds = overlayWin.getBounds()
+    log('Window bounds:', JSON.stringify(bounds))
+    log('Window visible:', overlayWin.isVisible())
+
     overlayWin.show()
     overlayWin.focus()
     overlayWin.setAlwaysOnTop(true, 'screen-saver')
 
-    // Show first-time welcome notification
+    log('After show - visible:', overlayWin.isVisible())
+    log('After show - minimized:', overlayWin.isMinimized())
+
+    // Check if this is first launch and send to renderer
     const welcomeShown = settingsRepo.get('first_launch_welcome_shown')
     if (!welcomeShown) {
-      console.log('First launch detected, showing welcome notification')
-      const notification = new Notification({
-        title: 'Willkommen bei FocusRing!',
-        body: `Drücke ${shortcut} um das Overlay zu aktivieren/deaktivieren.`
-      })
-      notification.show()
-      settingsRepo.set('first_launch_welcome_shown', 'true')
+      log('First launch detected, showing welcome message')
+      overlayWin.webContents.send('overlay/firstLaunch', { shortcut })
     }
   })
 
+  // Listen for renderer errors (in both dev and production)
+  overlayWin.webContents.on('console-message', (_event, level, message) => {
+    if (typeof message === 'string' && (
+      message.includes('Request Autofill.enable failed') ||
+      message.includes("'Autofill.enable' wasn't found") ||
+      message.includes('Request Autofill.setAddresses failed') ||
+      message.includes("'Autofill.setAddresses' wasn't found")
+    )) return
+    const prefix = level === 2 ? 'ERROR' : level === 1 ? 'WARN' : 'LOG'
+    log(`[RENDERER ${prefix}] ${message}`)
+  })
+
+  overlayWin.webContents.on('crashed', () => {
+    logError('[RENDERER] Process crashed!')
+  })
+
+  overlayWin.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    logError('[RENDERER] Failed to load:', errorCode, errorDescription)
+  })
+
   if (process.env.VITE_DEV) {
-    await overlayWin.loadURL('http://localhost:5173')
-    overlayWin.webContents.on('console-message', (_event, level, message) => {
-      if (typeof message === 'string' && (
-        message.includes('Request Autofill.enable failed') ||
-        message.includes("'Autofill.enable' wasn't found") ||
-        message.includes('Request Autofill.setAddresses failed') ||
-        message.includes("'Autofill.setAddresses' wasn't found")
-      )) return
-      const lvl = level === 2 ? 'error' : level === 1 ? 'warn' : 'log'
-      console[lvl]?.(`renderer: ${message}`)
-    })
+    log('DEV mode: loading from localhost')
+    // Retry logic for dev server
+    let retries = 5
+    let loaded = false
+    while (retries > 0 && !loaded) {
+      try {
+        await overlayWin.loadURL('http://localhost:5173')
+        loaded = true
+        log('Dev server loaded successfully')
+      } catch (error) {
+        retries--
+        logError('Failed to load dev server, retries left:', retries, error)
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        } else {
+          throw error
+        }
+      }
+    }
+    overlayWin.webContents.openDevTools({ mode: 'detach' })
   } else {
-    await overlayWin.loadFile(path.join(__dirname, '../dist/renderer/index.html'))
+    const htmlPath = path.join(__dirname, '../dist/renderer/index.html')
+    log('[MAIN] Loading HTML from:', htmlPath)
+    await overlayWin.loadFile(htmlPath)
+    log('[MAIN] HTML loaded successfully')
   }
 
-  console.log('Overlay window created at position:', overlayWin.getBounds())
+  log('Overlay window created at position:', JSON.stringify(overlayWin.getBounds()))
 
   // scheduler fuer reminder (Overlay ist unser "Main"-Fenster)
   startScheduler((rem) => {
@@ -164,6 +276,7 @@ const applyInteractState = () => {
 }
 
 const scheduleAutoRevert = () => {
+  if (!autoRevertEnabled) return  // Nur wenn auto-revert aktiviert ist
   if (autoRevertTimer) clearTimeout(autoRevertTimer)
   autoRevertTimer = setTimeout(() => {
     interactive = false
@@ -174,7 +287,7 @@ const scheduleAutoRevert = () => {
 const toggleInteract = () => {
   interactive = !interactive
 
-  if (interactive) {
+  if (interactive && autoRevertEnabled) {
     scheduleAutoRevert()
   } else {
     if (autoRevertTimer) {
@@ -285,7 +398,21 @@ const openToolWindow = async (toolId) => {
 
     // Reload with new tool if different
     if (process.env.VITE_DEV) {
-      await toolWin.loadURL(`http://localhost:5173/${search}`)
+      let retries = 5
+      let loaded = false
+      while (retries > 0 && !loaded) {
+        try {
+          await toolWin.loadURL(`http://localhost:5173/${search}`)
+          loaded = true
+        } catch (error) {
+          retries--
+          if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          } else {
+            throw error
+          }
+        }
+      }
     } else {
       await toolWin.loadFile(
         path.join(__dirname, '../dist/renderer/index.html'),
@@ -314,7 +441,8 @@ const openToolWindow = async (toolId) => {
       webPreferences: {
         preload: path.join(__dirname, 'preload.cjs'),
         contextIsolation: true,
-        sandbox: false
+        sandbox: false,
+        cache: false
       }
     })
 
@@ -339,7 +467,21 @@ const openToolWindow = async (toolId) => {
   }
 
   if (process.env.VITE_DEV) {
-    await toolWin.loadURL(`http://localhost:5173/${search}`)
+    let retries = 5
+    let loaded = false
+    while (retries > 0 && !loaded) {
+      try {
+        await toolWin.loadURL(`http://localhost:5173/${search}`)
+        loaded = true
+      } catch (error) {
+        retries--
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        } else {
+          throw error
+        }
+      }
+    }
   } else {
     await toolWin.loadFile(
       path.join(__dirname, '../dist/renderer/index.html'),
@@ -351,18 +493,22 @@ const openToolWindow = async (toolId) => {
 }
 
 app.whenReady().then(async () => {
+  log('App ready, initializing...')
   try {
     await createOverlayWindow()
+    log('Overlay window created successfully')
     registerShortcut()
+    log('Shortcuts registered')
     restoreTimers()
+    log('Timers restored')
 
     // Handle system sleep/wake for timers and reminders
     powerMonitor.on('suspend', () => {
-      console.log('System is going to sleep')
+      log('System is going to sleep')
     })
 
     powerMonitor.on('resume', () => {
-      console.log('System woke up from sleep')
+      log('System woke up from sleep')
       // Recalculate all timers
       restoreTimers()
       // Reschedule all reminders
@@ -376,7 +522,8 @@ app.whenReady().then(async () => {
       }
     })
   } catch (error) {
-    console.error(error)
+    logError('Failed to initialize app:', error)
+    logError('Stack:', error.stack)
   }
 })
 
@@ -399,25 +546,43 @@ ipcMain.handle('overlay/getState', () => {
   return { interactive }
 })
 
-// config fuer auto-timeout + shortcut
+// config fuer auto-timeout + shortcut + auto-revert
 ipcMain.handle('overlay/getConfig', () => {
-  return { autoTimeoutSec, shortcut, theme }
+  return { autoTimeoutSec, shortcut, theme, autoRevertEnabled }
 })
 
 ipcMain.handle('overlay/setAutoTimeout', (_e, sec) => {
   const n = parseInt(sec, 10)
   if (!Number.isFinite(n) || n <= 0) {
-    return { autoTimeoutSec, shortcut }
+    return { autoTimeoutSec, shortcut, autoRevertEnabled }
   }
 
   autoTimeoutSec = n
   settingsRepo.set({ key: 'overlay_auto_timeout_s', value: String(autoTimeoutSec) })
 
-  if (interactive) {
+  if (interactive && autoRevertEnabled) {
     scheduleAutoRevert()
   }
 
-  return { autoTimeoutSec, shortcut }
+  return { autoTimeoutSec, shortcut, autoRevertEnabled }
+})
+
+ipcMain.handle('overlay/setAutoRevert', (_e, enabled) => {
+  autoRevertEnabled = !!enabled
+  settingsRepo.set({ key: 'overlay_auto_revert_enabled', value: String(autoRevertEnabled) })
+
+  // Wenn deaktiviert, laufenden Timer stoppen
+  if (!autoRevertEnabled && autoRevertTimer) {
+    clearTimeout(autoRevertTimer)
+    autoRevertTimer = null
+  }
+
+  // Wenn aktiviert und interactive, Timer starten
+  if (autoRevertEnabled && interactive) {
+    scheduleAutoRevert()
+  }
+
+  return { autoRevertEnabled }
 })
 
 ipcMain.handle('overlay/setShortcut', (_e, value) => {
@@ -583,3 +748,9 @@ ipcMain.handle('reminder/list', () => remindersRepo.list())
 // settings generic
 ipcMain.handle('settings/get', (_e, key) => settingsRepo.get(key))
 ipcMain.handle('settings/set', (_e, kv) => settingsRepo.set(kv))
+
+// first launch welcome
+ipcMain.handle('overlay/dismissWelcome', () => {
+  settingsRepo.set({ key: 'first_launch_welcome_shown', value: 'true' })
+  return true
+})

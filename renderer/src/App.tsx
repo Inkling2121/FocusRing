@@ -4,13 +4,14 @@ import Notes from './tools/Notes'
 import TimerTool from './tools/Timer'
 import ReminderTool from './tools/Reminder'
 import Settings from './tools/Settings'
-import { invoke, onOverlayState, onOverlayTheme } from './ipc'
+import { invoke, onOverlayState, onOverlayTheme, onFirstLaunch } from './ipc'
 
 type ToolId = 'notes' | 'timer' | 'reminder' | 'settings'
 
 type Theme = {
   accent: string
   accentInactive: string
+  textColor?: string
 }
 
 type OverlayConfig = {
@@ -21,7 +22,8 @@ type OverlayConfig = {
 
 const defaultTheme: Theme = {
   accent: '#22c55e',
-  accentInactive: '#16a34a'
+  accentInactive: '#16a34a',
+  textColor: '#ffffff'
 }
 
 const App: React.FC = () => {
@@ -32,6 +34,8 @@ const App: React.FC = () => {
   const [interactive, setInteractive] = useState(false)
   const [theme, setTheme] = useState<Theme>(defaultTheme)
   const [tool] = useState<ToolId>(() => initialTool || 'notes')
+  const [showWelcome, setShowWelcome] = useState(false)
+  const [welcomeShortcut, setWelcomeShortcut] = useState('Control+Alt+Space')
 
   // Set overlay-mode class on root element if not a tool window
   useEffect(() => {
@@ -71,6 +75,14 @@ const App: React.FC = () => {
     invoke<{ interactive: boolean }>('overlay/getState')
       .then(s => setInteractive(!!s.interactive))
       .catch(() => { })
+
+    // Listen for first launch event
+    onFirstLaunch(data => {
+      if (data?.shortcut) {
+        setWelcomeShortcut(data.shortcut)
+      }
+      setShowWelcome(true)
+    })
   }, [isToolWindow])
 
   // TOOL-FENSTER (normale Fenster, kein Clickthrough)
@@ -140,6 +152,11 @@ const App: React.FC = () => {
     { id: 'settings', label: 'Settings', onClick: () => invoke('tools/open', 'settings') }
   ]
 
+  const handleDismissWelcome = async () => {
+    await invoke('overlay/dismissWelcome')
+    setShowWelcome(false)
+  }
+
   return (
     <div
       className="no-drag"
@@ -155,6 +172,63 @@ const App: React.FC = () => {
         background: 'transparent'
       }}
     >
+      {/* Welcome Message */}
+      {showWelcome && (
+        <div
+          className="no-drag"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 8
+          }}
+        >
+          <div
+            style={{
+              background: '#212121',
+              border: `2px solid ${theme.accent}`,
+              borderRadius: 12,
+              padding: '12px 16px',
+              textAlign: 'center',
+              boxShadow: `0 0 20px ${theme.accent}40`,
+              maxWidth: '220px'
+            }}
+          >
+            <div style={{ margin: '0 0 8px 0', color: theme.accent, fontSize: 15, fontWeight: 600 }}>
+              Willkommen!
+            </div>
+            <div style={{ margin: '0 0 10px 0', fontSize: 12, lineHeight: 1.4, color: '#ddd' }}>
+              Drücke <strong style={{ color: theme.accent }}>{welcomeShortcut}</strong> zum Umschalten
+            </div>
+            <button
+              onClick={handleDismissWelcome}
+              style={{
+                background: theme.accent,
+                color: '#000',
+                border: 'none',
+                borderRadius: 6,
+                padding: '6px 16px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'opacity 0.2s'
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Drag-Bar nur oben und nur im interaktiven Modus */}
       <div
         className={interactive ? 'drag' : 'no-drag'}
@@ -175,6 +249,7 @@ const App: React.FC = () => {
           interactive={interactive}
           accentActive={theme.accent}
           accentInactive={theme.accentInactive || theme.accent}
+          textColor={theme.textColor || '#ffffff'}
         />
       </div>
     </div>

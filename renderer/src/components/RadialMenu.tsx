@@ -7,6 +7,7 @@ type Props = {
   interactive: boolean
   accentActive: string
   accentInactive: string
+  textColor?: string
 }
 
 // erwartet #RRGGBB, hängt Alpha hinten dran (z.B. "33", "AA")
@@ -19,7 +20,8 @@ export default function RadialMenu({
   items,
   interactive,
   accentActive,
-  accentInactive
+  accentInactive,
+  textColor = '#ffffff'
 }: Props) {
   const r = 100
   const btnSize = 48
@@ -91,7 +93,7 @@ export default function RadialMenu({
               borderRadius: '50%',
               border: 'none',
               background: btnColor,
-              color: '#fff',
+              color: textColor,
               cursor: interactive ? 'pointer' : 'default',
               opacity: interactive ? 1 : 0.55,
               pointerEvents: interactive ? 'auto' : 'none',
