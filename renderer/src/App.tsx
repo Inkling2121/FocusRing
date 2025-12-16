@@ -33,6 +33,14 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>(defaultTheme)
   const [tool] = useState<ToolId>(() => initialTool || 'notes')
 
+  // Set overlay-mode class on root element if not a tool window
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (root && !isToolWindow) {
+      root.classList.add('overlay-mode')
+    }
+  }, [isToolWindow])
+
   // 🎨 Theme einmal holen + auf Live-Updates vom Main reagieren
   useEffect(() => {
     invoke<OverlayConfig>('overlay/getConfig')

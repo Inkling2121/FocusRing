@@ -151,8 +151,9 @@ const Notes: React.FC = () => {
     >
       <div
         style={{
-          width: 220,
+          width: '35%',
           minWidth: 200,
+          maxWidth: 400,
           display: 'flex',
           flexDirection: 'column',
           gap: 8
@@ -174,7 +175,7 @@ const Notes: React.FC = () => {
               borderRadius: 999,
               border: 'none',
               background: accent,
-              color: '#fff',
+              color: '#000000ff',
               cursor: busy ? 'default' : 'pointer',
               fontSize: 12
             }}
@@ -188,13 +189,13 @@ const Notes: React.FC = () => {
             onChange={e => setFilter(e.target.value)}
             style={{
               flex: 1,
+              minWidth: 80,
               padding: '4px 6px',
               borderRadius: 8,
               border: '1px solid #444',
               background: 'rgba(20,20,20,0.9)',
               color: '#f9fafb',
-              fontSize: 12,
-              maxWidth: '120px'
+              fontSize: 12
             }}
           />
         </div>

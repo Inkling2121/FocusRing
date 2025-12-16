@@ -87,7 +87,6 @@ const createOverlayWindow = async () => {
 
   if (process.env.VITE_DEV) {
     await overlayWin.loadURL('http://localhost:5173')
-    overlayWin.webContents.openDevTools()
     overlayWin.webContents.on('console-message', (_event, level, message) => {
       if (typeof message === 'string' && (
         message.includes('Request Autofill.enable failed') ||
@@ -254,6 +253,26 @@ const restoreTimers = () => {
 const openToolWindow = async (toolId) => {
   const search = `?tool=${encodeURIComponent(toolId)}`
 
+  // If window exists and is minimized, restore it
+  if (toolWin && !toolWin.isDestroyed()) {
+    if (toolWin.isMinimized()) {
+      toolWin.restore()
+    }
+    toolWin.focus()
+
+    // Reload with new tool if different
+    if (process.env.VITE_DEV) {
+      await toolWin.loadURL(`http://localhost:5173/${search}`)
+    } else {
+      await toolWin.loadFile(
+        path.join(__dirname, '../dist/renderer/index.html'),
+        { search }
+      )
+    }
+    return
+  }
+
+  // Create new window
   if (!toolWin || toolWin.isDestroyed()) {
     // Load saved position for this tool
     const saved = toolWindowRepo.get(toolId)

@@ -172,7 +172,7 @@ app.whenReady().then(async () => {
 1. **`ensureDb()`**: Datenbank wird initialisiert oder geladen
 2. **Settings laden**: Auto-Timeout, Shortcut, Theme aus DB holen
 3. **Fenster erstellen**: Mit `new BrowserWindow({...})`
-   - 250x130 Pixel groß
+   - 270x130 Pixel groß
    - Ohne Rahmen (`frame: false`)
    - Transparent (`transparent: true`)
    - Immer im Vordergrund (`alwaysOnTop: true`)

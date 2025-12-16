@@ -82,7 +82,7 @@ const Settings: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 260 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 260, height: '100%', boxSizing: 'border-box' }}>
       <h2 style={{ margin: 0, fontSize: 16 }}>Einstellungen</h2>
 
       {/* Cooldown */}
@@ -154,8 +154,8 @@ const Settings: React.FC = () => {
           padding: '6px 14px',
           borderRadius: 999,
           border: 'none',
-          background: theme.accent,
-          color: '#fff',
+          background: '#22c55e',
+          color: '#000000ff',
           cursor: 'pointer',
           opacity: saving ? 0.7 : 1,
           marginTop: 8
