@@ -78,10 +78,31 @@ const createOverlayWindow = async () => {
     alwaysOnTop: true,
     skipTaskbar: false,
     autoHideMenuBar: true,
+    show: false,  // Don't show until ready
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       sandbox: false
+    }
+  })
+
+  // Show window when ready
+  overlayWin.once('ready-to-show', () => {
+    console.log('Overlay window ready, showing now')
+    overlayWin.show()
+    overlayWin.focus()
+    overlayWin.setAlwaysOnTop(true, 'screen-saver')
+
+    // Show first-time welcome notification
+    const welcomeShown = settingsRepo.get('first_launch_welcome_shown')
+    if (!welcomeShown) {
+      console.log('First launch detected, showing welcome notification')
+      const notification = new Notification({
+        title: 'Willkommen bei FocusRing!',
+        body: `Drücke ${shortcut} um das Overlay zu aktivieren/deaktivieren.`
+      })
+      notification.show()
+      settingsRepo.set('first_launch_welcome_shown', 'true')
     }
   })
 
@@ -100,6 +121,8 @@ const createOverlayWindow = async () => {
   } else {
     await overlayWin.loadFile(path.join(__dirname, '../dist/renderer/index.html'))
   }
+
+  console.log('Overlay window created at position:', overlayWin.getBounds())
 
   // scheduler fuer reminder (Overlay ist unser "Main"-Fenster)
   startScheduler((rem) => {
