@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(cmd //c \"type C:\\\\Users\\\\noah\\\\AppData\\\\Roaming\\\\focusring\\\\debug.log\")",
+      "Bash(findstr:*)",
+      "Bash(cmd //c \"type C:\\\\Users\\\\noah\\\\AppData\\\\Roaming\\\\focusring\\\\debug.log | findstr 15:32:39\")"
     ],
     "deny": [],
     "ask": []

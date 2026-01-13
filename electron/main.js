@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, Notification, powerMonitor } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, Notification, powerMonitor, screen } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
@@ -51,7 +51,6 @@ if (!gotTheLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    // Someone tried to run a second instance, focus our window instead
     if (overlayWin) {
       if (overlayWin.isMinimized()) overlayWin.restore()
       overlayWin.focus()
@@ -75,8 +74,13 @@ let theme = {
 
 const createOverlayWindow = async () => {
   log('Creating overlay window...')
-  await ensureDb()
-  log('Database initialized')
+  try {
+    await ensureDb()
+    log('Database initialized')
+  } catch (error) {
+    logError('Database initialization failed:', error)
+    throw error
+  }
 
     // auto-revert enabled aus settings laden
   const autoRevertSetting = settingsRepo.get('overlay_auto_revert_enabled')
@@ -123,7 +127,6 @@ const createOverlayWindow = async () => {
   let y = state?.pos_y
 
   if (x !== undefined && y !== undefined) {
-    const { screen } = require('electron')
     const displays = screen.getAllDisplays()
     log('Checking if position', x, y, 'is on screen. Displays:', displays.length)
     const isOnScreen = displays.some(display => {
@@ -142,6 +145,10 @@ const createOverlayWindow = async () => {
 
   log('Creating BrowserWindow with size:', state?.width || 250, 'x', state?.height || 130, 'at', x, y)
 
+  const preloadPath = path.join(__dirname, 'preload.cjs')
+  log('Preload path:', preloadPath)
+  log('Preload exists:', fs.existsSync(preloadPath))
+
   overlayWin = new BrowserWindow({
     width: state?.width || 250,
     height: state?.height || 130,
@@ -153,9 +160,9 @@ const createOverlayWindow = async () => {
     alwaysOnTop: true,
     skipTaskbar: false,
     autoHideMenuBar: true,
-    show: false,  // Don't show until ready
+    show: process.env.VITE_DEV ? true : false,  // Show immediately in dev mode to prevent auto-close
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
+      preload: preloadPath,
       contextIsolation: true,
       sandbox: false,
       cache: false
@@ -163,6 +170,40 @@ const createOverlayWindow = async () => {
   })
 
   log('BrowserWindow created')
+
+  // Prevent closing in dev mode until content is loaded
+  if (process.env.VITE_DEV) {
+    overlayWin.setClosable(false)
+    log('Window set to non-closable in dev mode')
+  }
+
+  // Debug: Log window events
+  overlayWin.on('close', (e) => {
+    log('Overlay window "close" event fired')
+    const stack = new Error().stack
+    log('Stack trace:', stack)
+    // Prevent close during dev mode debugging
+    if (process.env.VITE_DEV) {
+      log('PREVENTING CLOSE in dev mode for debugging')
+      e.preventDefault()
+      logError('Something tried to close the window! Stack:', stack)
+    }
+  })
+  overlayWin.on('closed', () => {
+    log('Overlay window "closed" event fired')
+  })
+  overlayWin.webContents.on('render-process-gone', (event, details) => {
+    logError('Render process gone:', details)
+  })
+  overlayWin.on('unresponsive', () => {
+    logError('Window became unresponsive')
+  })
+  overlayWin.webContents.on('did-finish-load', () => {
+    log('WebContents finished loading')
+  })
+  overlayWin.webContents.on('dom-ready', () => {
+    log('WebContents DOM ready')
+  })
 
   // Show window when ready
   overlayWin.once('ready-to-show', () => {
@@ -208,25 +249,51 @@ const createOverlayWindow = async () => {
 
   if (process.env.VITE_DEV) {
     log('DEV mode: loading from localhost')
-    // Retry logic for dev server
-    let retries = 5
+
+    // Try to load - with retries if needed
     let loaded = false
-    while (retries > 0 && !loaded) {
+    for (let i = 0; i < 5 && !loaded; i++) {
+      // Check if window is still alive before attempting to load
+      if (overlayWin.isDestroyed()) {
+        logError('Window was destroyed before load attempt', i + 1)
+        break
+      }
+
       try {
-        await overlayWin.loadURL('http://localhost:5173')
+        log(`Attempt ${i + 1}: Loading http://127.0.0.1:5173`)
+        log('Window destroyed before loadURL?', overlayWin.isDestroyed())
+        await overlayWin.loadURL('http://127.0.0.1:5173')
         loaded = true
-        log('Dev server loaded successfully')
-      } catch (error) {
-        retries--
-        logError('Failed to load dev server, retries left:', retries, error)
-        if (retries > 0) {
+        log('Successfully loaded!')
+      } catch (err) {
+        logError(`Attempt ${i + 1} failed:`, err.message)
+        log('Window destroyed after error?', overlayWin.isDestroyed())
+
+        if (overlayWin.isDestroyed()) {
+          logError('Window was destroyed after failed load attempt!')
+          break
+        }
+
+        if (i < 4) {
+          log('Waiting 1 second before retry...')
           await new Promise(resolve => setTimeout(resolve, 1000))
-        } else {
-          throw error
+          log('Done waiting, window destroyed?', overlayWin.isDestroyed())
         }
       }
     }
-    overlayWin.webContents.openDevTools({ mode: 'detach' })
+
+    if (loaded && !overlayWin.isDestroyed()) {
+      log('Opening DevTools...')
+      overlayWin.webContents.openDevTools({ mode: 'detach' })
+      overlayWin.setClosable(true)
+      log('Window set to closable after successful load')
+    } else {
+      logError('Failed to load after all retries or window was destroyed')
+      // Re-enable closing even on failure
+      if (!overlayWin.isDestroyed()) {
+        overlayWin.setClosable(true)
+      }
+    }
   } else {
     const htmlPath = path.join(__dirname, '../dist/renderer/index.html')
     log('[MAIN] Loading HTML from:', htmlPath)
@@ -258,7 +325,7 @@ const createOverlayWindow = async () => {
 const saveBounds = () => {
   if (!overlayWin) return
   const b = overlayWin.getBounds()
-  windowRepo.set({
+  windowRepo.save({
     id: 1,
     pos_x: b.x,
     pos_y: b.y,
@@ -313,7 +380,7 @@ const scheduleTimer = (timer) => {
 
   // Clear existing timer if any
   const existing = activeTimers.get(timer.id)
-  if (existing) clearTimeout(existing)
+  if (existing && existing.handle) clearTimeout(existing.handle)
 
   // Don't schedule if paused
   if (timer.status === 'paused') {
@@ -326,9 +393,16 @@ const scheduleTimer = (timer) => {
   const now = Date.now()
   const delay = timer.targetAt - now
 
-  if (delay <= 0) {
+  const finishTimer = () => {
+    const dbTimer = timersRepo.getById(timer.id)
+    if (dbTimer) {
+      timersRepo.update(timer.id, {
+        ...dbTimer,
+        state: 'done',
+        remaining_ms: 0
+      })
+    }
     const finished = { ...timer, status: 'done', remainingMs: 0 }
-    timersRepo.update(finished)
     activeTimers.delete(timer.id)
     const title = timer.name ? `Timer: ${timer.name}` : 'Timer abgelaufen'
     const body = timer.name ? `Dein Timer "${timer.name}" ist abgelaufen.` : 'Dein Timer ist fertig.'
@@ -343,44 +417,42 @@ const scheduleTimer = (timer) => {
     if (toolWin && !toolWin.isDestroyed()) {
       toolWin.webContents.send('timer/fired', finished)
     }
+  }
+
+  if (delay <= 0) {
+    finishTimer()
     return
   }
 
-  const handle = setTimeout(() => {
-    const finished = { ...timer, status: 'done', remainingMs: 0 }
-    timersRepo.update(finished)
-    activeTimers.delete(timer.id)
-    const title = timer.name ? `Timer: ${timer.name}` : 'Timer abgelaufen'
-    const body = timer.name ? `Dein Timer "${timer.name}" ist abgelaufen.` : 'Dein Timer ist fertig.'
-    const notification = new Notification({ title, body })
-    notification.on('click', () => {
-      openToolWindow('timer')
-    })
-    notification.show()
-    if (overlayWin && !overlayWin.isDestroyed()) {
-      overlayWin.webContents.send('timer/fired', finished)
-    }
-    if (toolWin && !toolWin.isDestroyed()) {
-      toolWin.webContents.send('timer/fired', finished)
-    }
-  }, delay)
-  activeTimers.set(timer.id, handle)
+  const handle = setTimeout(finishTimer, delay)
+  activeTimers.set(timer.id, { handle, targetAt: timer.targetAt })
 }
 
 const restoreTimers = () => {
-  const list = timersRepo.list() || []
+  const dbTimers = timersRepo.getAll() || []
   const now = Date.now()
-  list.forEach(t => {
-    if (t.status === 'running') {
-      if (t.targetAt && t.targetAt > now) {
-        scheduleTimer(t)
+  dbTimers.forEach(dbTimer => {
+    if (dbTimer.state === 'running') {
+      const targetAt = now + dbTimer.remaining_ms
+      if (dbTimer.remaining_ms > 0) {
+        const frontendTimer = {
+          id: dbTimer.id,
+          name: dbTimer.label,
+          totalSeconds: Math.round(dbTimer.duration_ms / 1000),
+          status: 'running',
+          remainingMs: dbTimer.remaining_ms,
+          targetAt
+        }
+        scheduleTimer(frontendTimer)
       } else {
-        const finished = { ...t, status: 'done', remainingMs: 0 }
-        timersRepo.update(finished)
+        timersRepo.update(dbTimer.id, {
+          ...dbTimer,
+          state: 'done',
+          remaining_ms: 0
+        })
       }
-    } else if (t.status === 'paused') {
-      // Paused timers don't need scheduling, just leave them
     }
+    // Paused timers don't need scheduling, just leave them
   })
 }
 
@@ -402,7 +474,7 @@ const openToolWindow = async (toolId) => {
       let loaded = false
       while (retries > 0 && !loaded) {
         try {
-          await toolWin.loadURL(`http://localhost:5173/${search}`)
+          await toolWin.loadURL(`http://127.0.0.1:5173/${search}`)
           loaded = true
         } catch (error) {
           retries--
@@ -451,7 +523,7 @@ const openToolWindow = async (toolId) => {
     const saveBoundsForTool = () => {
       if (!toolWin || toolWin.isDestroyed()) return
       const b = toolWin.getBounds()
-      toolWindowRepo.set(currentToolId, { x: b.x, y: b.y, width: b.width, height: b.height })
+      toolWindowRepo.save(currentToolId, { pos_x: b.x, pos_y: b.y, width: b.width, height: b.height })
     }
 
     toolWin.on('move', saveBoundsForTool)
@@ -471,7 +543,7 @@ const openToolWindow = async (toolId) => {
     let loaded = false
     while (retries > 0 && !loaded) {
       try {
-        await toolWin.loadURL(`http://localhost:5173/${search}`)
+        await toolWin.loadURL(`http://127.0.0.1:5173/${search}`)
         loaded = true
       } catch (error) {
         retries--
@@ -529,6 +601,11 @@ app.whenReady().then(async () => {
 
 
 app.on('window-all-closed', () => {
+  // In dev mode, don't quit when windows are closed - allows debugging
+  if (process.env.VITE_DEV) {
+    log('All windows closed in dev mode, but not quitting')
+    return
+  }
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -634,9 +711,15 @@ ipcMain.handle('tools/open', (_e, toolId) => {
 })
 
 // notes
-ipcMain.handle('notes/list', () => notesRepo.list())
-ipcMain.handle('notes/create', (_e, n) => notesRepo.create(n))
-ipcMain.handle('notes/update', (_e, n) => notesRepo.update(n))
+ipcMain.handle('notes/list', () => notesRepo.getAll())
+ipcMain.handle('notes/create', (_e, n) => {
+  const id = notesRepo.create(n)
+  return notesRepo.getById(id)
+})
+ipcMain.handle('notes/update', (_e, n) => {
+  notesRepo.update(n.id, n)
+  return notesRepo.getById(n.id)
+})
 ipcMain.handle('notes/delete', (_e, id) => notesRepo.remove(id))
 
 // timer
@@ -646,81 +729,134 @@ ipcMain.handle('timer/create', (_e, payload) => {
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
     throw new Error('invalid duration')
   }
-  const created = timersRepo.create({
+  const now = Date.now()
+  const duration_ms = totalSeconds * 1000
+  const id = timersRepo.create({
+    label: name,
+    duration_ms,
+    remaining_ms: duration_ms,
+    state: 'running',
+    paused_at: null
+  })
+  const created = {
+    id,
     name,
     totalSeconds,
-    status: 'running'
-  })
+    status: 'running',
+    remainingMs: duration_ms,
+    targetAt: now + duration_ms
+  }
   scheduleTimer(created)
   return created
 })
 
 ipcMain.handle('timer/list', () => {
-  return timersRepo.list() || []
+  const dbTimers = timersRepo.getAll() || []
+  // Convert DB format to frontend format
+  return dbTimers.map(t => ({
+    id: t.id,
+    name: t.label,
+    totalSeconds: Math.round(t.duration_ms / 1000),
+    status: t.state,
+    remainingMs: t.remaining_ms,
+    targetAt: t.state === 'running' ? Date.now() + t.remaining_ms : null,
+    pausedAt: t.paused_at
+  }))
 })
 
 ipcMain.handle('timer/cancel', (_e, id) => {
   if (!id) return
-  const list = timersRepo.list() || []
-  const timer = list.find(t => t.id === id)
-  if (!timer) return
+  const dbTimer = timersRepo.getById(id)
+  if (!dbTimer) return
   const existing = activeTimers.get(id)
-  if (existing) {
-    clearTimeout(existing)
+  if (existing && existing.handle) {
+    clearTimeout(existing.handle)
     activeTimers.delete(id)
   }
-  const updated = { ...timer, status: 'cancelled', remainingMs: 0 }
-  timersRepo.update(updated)
-  return updated
+  timersRepo.update(id, {
+    ...dbTimer,
+    state: 'cancelled',
+    remaining_ms: 0
+  })
+  return {
+    id: dbTimer.id,
+    name: dbTimer.label,
+    totalSeconds: Math.round(dbTimer.duration_ms / 1000),
+    status: 'cancelled',
+    remainingMs: 0
+  }
 })
 
 ipcMain.handle('timer/pause', (_e, id) => {
   if (!id) return
-  const list = timersRepo.list() || []
-  const timer = list.find(t => t.id === id)
-  if (!timer || timer.status !== 'running') return timer
+  const dbTimer = timersRepo.getById(id)
+  if (!dbTimer || dbTimer.state !== 'running') return
 
-  // Calculate remaining time
-  const now = Date.now()
-  const remainingMs = Math.max(0, timer.targetAt - now)
-
-  // Clear the scheduled timeout
+  // Calculate remaining time from the activeTimer
   const existing = activeTimers.get(id)
+  const now = Date.now()
+  let remainingMs = dbTimer.remaining_ms
+
   if (existing) {
-    clearTimeout(existing)
+    // Timer is active, calculate actual remaining time
+    if (existing.targetAt) {
+      remainingMs = Math.max(0, existing.targetAt - now)
+    }
+    if (existing.handle) {
+      clearTimeout(existing.handle)
+    }
     activeTimers.delete(id)
   }
 
   // Update to paused state
-  const updated = { ...timer, status: 'paused', remainingMs, pausedAt: now }
-  timersRepo.update(updated)
-  return updated
+  timersRepo.update(id, {
+    ...dbTimer,
+    state: 'paused',
+    remaining_ms: remainingMs,
+    paused_at: now
+  })
+
+  return {
+    id: dbTimer.id,
+    name: dbTimer.label,
+    totalSeconds: Math.round(dbTimer.duration_ms / 1000),
+    status: 'paused',
+    remainingMs,
+    pausedAt: now
+  }
 })
 
 ipcMain.handle('timer/resume', (_e, id) => {
   if (!id) return
-  const list = timersRepo.list() || []
-  const timer = list.find(t => t.id === id)
-  if (!timer || timer.status !== 'paused') return timer
+  const dbTimer = timersRepo.getById(id)
+  if (!dbTimer || dbTimer.state !== 'paused') return
 
   // Resume with remaining time
   const now = Date.now()
-  const updated = {
-    ...timer,
+  timersRepo.update(id, {
+    ...dbTimer,
+    state: 'running',
+    paused_at: null
+  })
+
+  const frontendTimer = {
+    id: dbTimer.id,
+    name: dbTimer.label,
+    totalSeconds: Math.round(dbTimer.duration_ms / 1000),
     status: 'running',
-    targetAt: now + (timer.remainingMs || 0),
+    remainingMs: dbTimer.remaining_ms,
+    targetAt: now + dbTimer.remaining_ms,
     pausedAt: null
   }
-  timersRepo.update(updated)
-  scheduleTimer(updated)
-  return updated
+  scheduleTimer(frontendTimer)
+  return frontendTimer
 })
 
 ipcMain.handle('timer/delete', (_e, id) => {
   if (!id) return
   const existing = activeTimers.get(id)
-  if (existing) {
-    clearTimeout(existing)
+  if (existing && existing.handle) {
+    clearTimeout(existing.handle)
     activeTimers.delete(id)
   }
   timersRepo.remove(id)
@@ -731,19 +867,25 @@ ipcMain.handle('timer/delete', (_e, id) => {
 
 // reminders
 ipcMain.handle('reminder/create', (_e, r) => {
-  const created = remindersRepo.create(r)
+  const id = remindersRepo.create({ ...r, status: 'scheduled' })
+  const created = remindersRepo.getById(id)
   scheduleReminder(created)
   return created
 })
 ipcMain.handle('reminder/cancel', (_e, id) => {
   cancelReminder(id)
-  return remindersRepo.cancel(id)
+  const reminder = remindersRepo.getById(id)
+  if (reminder) {
+    remindersRepo.update(id, { ...reminder, status: 'canceled' })
+  }
+  return remindersRepo.getById(id)
 })
 ipcMain.handle('reminder/delete', (_e, id) => {
   cancelReminder(id)
-  return remindersRepo.remove(id)
+  remindersRepo.remove(id)
+  return true
 })
-ipcMain.handle('reminder/list', () => remindersRepo.list())
+ipcMain.handle('reminder/list', () => remindersRepo.getAll())
 
 // settings generic
 ipcMain.handle('settings/get', (_e, key) => settingsRepo.get(key))
