@@ -5,6 +5,9 @@ type Theme = {
   accent: string
   accentInactive: string
   textColor?: string
+  semicircleColor?: string
+  buttonColor?: string
+  iconColor?: string
 }
 
 type OverlayConfig = {
@@ -21,7 +24,10 @@ const Settings: React.FC = () => {
   const [theme, setTheme] = useState<Theme>({
     accent: '#00ab3fff',
     accentInactive: '#006625ff',
-    textColor: '#ffffff'
+    textColor: '#ffffff',
+    semicircleColor: '#22c55e',
+    buttonColor: '#22c55e',
+    iconColor: '#ffffff'
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -152,31 +158,31 @@ const Settings: React.FC = () => {
 
       {/* Farben */}
       <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        Akzentfarbe (Aktiv)
+        Halbkreis-Farbe
         <input
           type="color"
-          value={theme.accent}
-          onChange={e => setTheme(t => ({ ...t, accent: e.target.value }))}
+          value={theme.semicircleColor || '#22c55e'}
+          onChange={e => setTheme(t => ({ ...t, semicircleColor: e.target.value }))}
           style={{ width: 40, height: 24, border: 'none', background: 'transparent', cursor: 'pointer' }}
         />
       </label>
 
       <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        Akzentfarbe (Clickthrough)
+        Button-Farbe
         <input
           type="color"
-          value={theme.accentInactive}
-          onChange={e => setTheme(t => ({ ...t, accentInactive: e.target.value }))}
+          value={theme.buttonColor || '#22c55e'}
+          onChange={e => setTheme(t => ({ ...t, buttonColor: e.target.value }))}
           style={{ width: 40, height: 24, border: 'none', background: 'transparent', cursor: 'pointer' }}
         />
       </label>
 
       <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        Textfarbe (Overlay)
+        Icon-Farbe
         <input
           type="color"
-          value={theme.textColor || '#ffffff'}
-          onChange={e => setTheme(t => ({ ...t, textColor: e.target.value }))}
+          value={theme.iconColor || '#ffffff'}
+          onChange={e => setTheme(t => ({ ...t, iconColor: e.target.value }))}
           style={{ width: 40, height: 24, border: 'none', background: 'transparent', cursor: 'pointer' }}
         />
       </label>

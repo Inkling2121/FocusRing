@@ -5,6 +5,7 @@ import TimerTool from './tools/Timer'
 import ReminderTool from './tools/Reminder'
 import Settings from './tools/Settings'
 import { invoke, onOverlayState, onOverlayTheme, onFirstLaunch } from './ipc'
+import { StickyNote, Clock, Bell, Settings as SettingsIcon } from 'lucide-react'
 
 type ToolId = 'notes' | 'timer' | 'reminder' | 'settings'
 
@@ -12,6 +13,9 @@ type Theme = {
   accent: string
   accentInactive: string
   textColor?: string
+  semicircleColor?: string
+  buttonColor?: string
+  iconColor?: string
 }
 
 type OverlayConfig = {
@@ -23,7 +27,10 @@ type OverlayConfig = {
 const defaultTheme: Theme = {
   accent: '#22c55e',
   accentInactive: '#16a34a',
-  textColor: '#ffffff'
+  textColor: '#ffffff',
+  semicircleColor: '#22c55e',
+  buttonColor: '#22c55e',
+  iconColor: '#ffffff'
 }
 
 const App: React.FC = () => {
@@ -146,10 +153,10 @@ const App: React.FC = () => {
 
   // 🟢 OVERLAY-FENSTER (Halbkreis + Buttons + Clickthrough-Mode)
   const items = [
-    { id: 'notes', label: 'Notes', onClick: () => invoke('tools/open', 'notes') },
-    { id: 'timer', label: 'Timer', onClick: () => invoke('tools/open', 'timer') },
-    { id: 'reminder', label: 'Reminder', onClick: () => invoke('tools/open', 'reminder') },
-    { id: 'settings', label: 'Settings', onClick: () => invoke('tools/open', 'settings') }
+    { id: 'notes', label: 'Notes', icon: <StickyNote size={20} />, onClick: () => invoke('tools/open', 'notes') },
+    { id: 'timer', label: 'Timer', icon: <Clock size={20} />, onClick: () => invoke('tools/open', 'timer') },
+    { id: 'reminder', label: 'Reminder', icon: <Bell size={20} />, onClick: () => invoke('tools/open', 'reminder') },
+    { id: 'settings', label: 'Settings', icon: <SettingsIcon size={20} />, onClick: () => invoke('tools/open', 'settings') }
   ]
 
   const handleDismissWelcome = async () => {
@@ -243,13 +250,16 @@ const App: React.FC = () => {
       />
 
       {/* Halbkreis + Buttons */}
-      <div className="no-drag" style={{ marginTop: 4, marginLeft: 20, marginRight: 10 }}>
+      <div className="no-drag" style={{ marginTop: 4, display: 'flex', justifyContent: 'center', width: '100%', paddingLeft: 25 }}>
         <RadialMenu
           items={items}
           interactive={interactive}
           accentActive={theme.accent}
           accentInactive={theme.accentInactive || theme.accent}
           textColor={theme.textColor || '#ffffff'}
+          semicircleColor={theme.semicircleColor || theme.accent}
+          buttonColor={theme.buttonColor || theme.accent}
+          iconColor={theme.iconColor || theme.textColor || '#ffffff'}
         />
       </div>
     </div>

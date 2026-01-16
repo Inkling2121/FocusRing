@@ -1,6 +1,6 @@
 import React from 'react'
 
-type Item = { id: string; label: string; onClick: () => void }
+type Item = { id: string; label: string; icon?: React.ReactNode; onClick: () => void }
 
 type Props = {
   items: Item[]
@@ -8,6 +8,9 @@ type Props = {
   accentActive: string
   accentInactive: string
   textColor?: string
+  semicircleColor?: string
+  buttonColor?: string
+  iconColor?: string
 }
 
 // erwartet #RRGGBB, hängt Alpha hinten dran (z.B. "33", "AA")
@@ -21,17 +24,21 @@ export default function RadialMenu({
   interactive,
   accentActive,
   accentInactive,
-  textColor = '#ffffff'
+  textColor = '#ffffff',
+  semicircleColor,
+  buttonColor,
+  iconColor
 }: Props) {
   const r = 100
   const btnSize = 48
   const paddingTop = -27
 
-  const edgeColor = interactive ? accentActive : accentInactive || accentActive
-  const btnColor  = interactive ? accentActive : accentInactive || accentActive
-  const fillBase = interactive ? '33' : '18'
-  const strokeAlpha = interactive ? 'CC' : '88'
-  const glowAlpha = interactive ? 'AA' : '55'
+  const edgeColor = interactive ? (semicircleColor || accentActive) : accentInactive || accentActive
+  const btnColor  = interactive ? (buttonColor || accentActive) : accentInactive || accentActive
+  const iconColorFinal = interactive ? (iconColor || textColor) : textColor
+  const fillBase = interactive ? 'FF' : '00'
+  const strokeAlpha = interactive ? 'CC' : '00'
+  const glowAlpha = interactive ? 'AA' : '00'
 
   // Etwas Abstand von den Ecken: Start und Ende leicht nach unten versetzt
   const startAngle = 0.4
@@ -67,8 +74,8 @@ export default function RadialMenu({
         <path
           d={`M 0 0 L ${2 * r} 0 A ${r} ${r} 0 0 1 0 0 Z`}
           fill={withAlpha(edgeColor, fillBase)} // Füllung
-          stroke={withAlpha(edgeColor, strokeAlpha)} // leuchtende Linie
-          strokeWidth={2}
+          stroke="none"
+          strokeWidth={0}
         />
       </svg>
 
@@ -93,31 +100,31 @@ export default function RadialMenu({
               borderRadius: '50%',
               border: 'none',
               background: btnColor,
-              color: textColor,
+              color: iconColorFinal,
               cursor: interactive ? 'pointer' : 'default',
-              opacity: interactive ? 1 : 0.55,
+              opacity: interactive ? 1 : 0,
               pointerEvents: interactive ? 'auto' : 'none',
               fontSize: 12,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: interactive
-                ? '0 4px 10px rgba(0,0,0,.25)'
+                ? `0 4px 10px rgba(0,0,0,.25), 0 0 20px ${withAlpha(btnColor, '66')}`
                 : '0 2px 6px rgba(0,0,0,.15)',
               transition: '.15s transform, .15s box-shadow, .2s opacity'
             }}
             onMouseEnter={(e) => {
               if (!interactive) return
               e.currentTarget.style.transform = 'scale(1.07)'
-              e.currentTarget.style.boxShadow = '0 6px 14px rgba(0,0,0,.35)'
+              e.currentTarget.style.boxShadow = `0 6px 14px rgba(0,0,0,.35), 0 0 25px ${withAlpha(btnColor, '99')}`
             }}
             onMouseLeave={(e) => {
               if (!interactive) return
               e.currentTarget.style.transform = 'scale(1)'
-              e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,.25)'
+              e.currentTarget.style.boxShadow = `0 4px 10px rgba(0,0,0,.25), 0 0 20px ${withAlpha(btnColor, '66')}`
             }}
           >
-            {item.label}
+            {item.icon ? item.icon : item.label}
           </button>
         )
       })}

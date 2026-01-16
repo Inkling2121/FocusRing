@@ -69,7 +69,10 @@ let shortcut = 'Control+Alt+Space' // default shortcut, kann geaendert werden
 let theme = {
   accent: '#22c55e',         // Haupt-Akzent (Buttons, Glow)
   accentInactive: '#16a34a', // Akzent im Clickthrough-Modus
-  textColor: '#ffffff'       // Text-Farbe im Overlay
+  textColor: '#ffffff',      // Text-Farbe im Overlay
+  semicircleColor: '#22c55e', // Halbkreis Farbe
+  buttonColor: '#22c55e',    // Button Farbe
+  iconColor: '#ffffff'       // Icon Farbe
 }
 
 const createOverlayWindow = async () => {
@@ -150,8 +153,8 @@ const createOverlayWindow = async () => {
   log('Preload exists:', fs.existsSync(preloadPath))
 
   overlayWin = new BrowserWindow({
-    width: state?.width || 250,
-    height: state?.height || 130,
+    width: state?.width || 270,
+    height: state?.height || 150,
     x: x,
     y: y,
     frame: false,
@@ -635,7 +638,7 @@ ipcMain.handle('overlay/setAutoTimeout', (_e, sec) => {
   }
 
   autoTimeoutSec = n
-  settingsRepo.set({ key: 'overlay_auto_timeout_s', value: String(autoTimeoutSec) })
+  settingsRepo.set('overlay_auto_timeout_s', String(autoTimeoutSec))
 
   if (interactive && autoRevertEnabled) {
     scheduleAutoRevert()
@@ -646,7 +649,7 @@ ipcMain.handle('overlay/setAutoTimeout', (_e, sec) => {
 
 ipcMain.handle('overlay/setAutoRevert', (_e, enabled) => {
   autoRevertEnabled = !!enabled
-  settingsRepo.set({ key: 'overlay_auto_revert_enabled', value: String(autoRevertEnabled) })
+  settingsRepo.set('overlay_auto_revert_enabled', String(autoRevertEnabled))
 
   // Wenn deaktiviert, laufenden Timer stoppen
   if (!autoRevertEnabled && autoRevertTimer) {
@@ -669,7 +672,7 @@ ipcMain.handle('overlay/setShortcut', (_e, value) => {
   }
 
   shortcut = v
-  settingsRepo.set({ key: 'overlay_shortcut', value: shortcut })
+  settingsRepo.set('overlay_shortcut', shortcut)
   registerShortcut()
 
   return { shortcut }
@@ -681,10 +684,7 @@ ipcMain.handle('overlay/setTheme', (_e, newTheme) => {
   }
 
   theme = { ...theme, ...newTheme }
-  settingsRepo.set({
-    key: 'overlay_theme',
-    value: JSON.stringify(theme)
-  })
+  settingsRepo.set('overlay_theme', JSON.stringify(theme))
 
   // Renderer informieren (Overlay + Tools)
   if (overlayWin && !overlayWin.isDestroyed()) {
@@ -893,6 +893,6 @@ ipcMain.handle('settings/set', (_e, kv) => settingsRepo.set(kv))
 
 // first launch welcome
 ipcMain.handle('overlay/dismissWelcome', () => {
-  settingsRepo.set({ key: 'first_launch_welcome_shown', value: 'true' })
+  settingsRepo.set('first_launch_welcome_shown', 'true')
   return true
 })

@@ -2,15 +2,17 @@ import { remindersRepo } from './db.js'
 
 let tickHandle
 const pending = new Map()
+let onFireCallback = null
 
 export const startScheduler = (onFire) => {
+  onFireCallback = onFire
   if (tickHandle) return
   tickHandle = setInterval(() => {
     const now = Date.now()
     const list = remindersRepo.getAll().filter(r => r.status === 'scheduled' && r.fire_at <= now)
     for (const r of list) {
       remindersRepo.update(r.id, { ...r, status: 'fired' })
-      onFire(r)
+      if (onFireCallback) onFireCallback(r)
       clearPending(r.id)
     }
   }, 500)
@@ -29,6 +31,7 @@ export const scheduleReminder = (r) => {
   const delay = Math.max(0, r.fire_at - Date.now())
   const t = setTimeout(() => {
     remindersRepo.update(r.id, { ...r, status: 'fired' })
+    if (onFireCallback) onFireCallback(r)
   }, delay)
   pending.set(r.id, t)
 }
