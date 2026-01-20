@@ -22,7 +22,7 @@ FocusRing is a desktop overlay application for Windows that provides lightning-f
 ### Windows
 
 1. Download the latest version from [Releases](https://github.com/Inkling2121/FocusRing/releases)
-2. Run `FocusRing Setup 0.3.4.exe`
+2. Run `FocusRing Setup 0.3.5.exe`
 3. The application starts automatically after installation
 4. Use `Ctrl+Alt+Space` to open the overlay
 
