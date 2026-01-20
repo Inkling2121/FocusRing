@@ -44,11 +44,20 @@ const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(false)
   const [welcomeShortcut, setWelcomeShortcut] = useState('Control+Alt+Space')
 
-  // Set overlay-mode class on root element if not a tool window
+  // Set overlay-mode or tool-mode class on html, body, and root
   useEffect(() => {
     const root = document.getElementById('root')
-    if (root && !isToolWindow) {
-      root.classList.add('overlay-mode')
+    const html = document.documentElement
+    const body = document.body
+
+    if (isToolWindow) {
+      html.classList.add('tool-mode')
+      body.classList.add('tool-mode')
+      root?.classList.add('tool-mode')
+    } else {
+      html.classList.add('overlay-mode')
+      body.classList.add('overlay-mode')
+      root?.classList.add('overlay-mode')
     }
   }, [isToolWindow])
 
@@ -184,55 +193,44 @@ const App: React.FC = () => {
         <div
           className="no-drag"
           style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: 8
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: '#212121',
+            border: `2px solid ${theme.accent}`,
+            borderRadius: 12,
+            padding: '12px 16px',
+            textAlign: 'center',
+            boxShadow: `0 0 20px ${theme.accent}40`,
+            maxWidth: '220px',
+            zIndex: 9999
           }}
         >
-          <div
-            style={{
-              background: '#212121',
-              border: `2px solid ${theme.accent}`,
-              borderRadius: 12,
-              padding: '12px 16px',
-              textAlign: 'center',
-              boxShadow: `0 0 20px ${theme.accent}40`,
-              maxWidth: '220px'
-            }}
-          >
-            <div style={{ margin: '0 0 8px 0', color: theme.accent, fontSize: 15, fontWeight: 600 }}>
-              Willkommen!
-            </div>
-            <div style={{ margin: '0 0 10px 0', fontSize: 12, lineHeight: 1.4, color: '#ddd' }}>
-              Drücke <strong style={{ color: theme.accent }}>{welcomeShortcut}</strong> zum Umschalten
-            </div>
-            <button
-              onClick={handleDismissWelcome}
-              style={{
-                background: theme.accent,
-                color: '#000',
-                border: 'none',
-                borderRadius: 6,
-                padding: '6px 16px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'opacity 0.2s'
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-            >
-              OK
-            </button>
+          <div style={{ margin: '0 0 8px 0', color: theme.accent, fontSize: 15, fontWeight: 600 }}>
+            Willkommen!
           </div>
+          <div style={{ margin: '0 0 10px 0', fontSize: 12, lineHeight: 1.4, color: '#ddd' }}>
+            Drücke <strong style={{ color: theme.accent }}>{welcomeShortcut}</strong> zum Umschalten
+          </div>
+          <button
+            onClick={handleDismissWelcome}
+            style={{
+              background: theme.accent,
+              color: '#000',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 16px',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'opacity 0.2s'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+          >
+            OK
+          </button>
         </div>
       )}
 
@@ -243,14 +241,14 @@ const App: React.FC = () => {
           position: 'absolute',
           top: 0,
           left: 0,
-          width: '100%',
+          right: 0,
           height: 18,
           cursor: interactive ? 'move' : 'default'
         }}
       />
 
       {/* Halbkreis + Buttons */}
-      <div className="no-drag" style={{ marginTop: 4, display: 'flex', justifyContent: 'center', width: '100%', paddingLeft: 25 }}>
+      <div className="no-drag" style={{ marginTop: 4, marginLeft: 40, marginRight: 10 }}>
         <RadialMenu
           items={items}
           interactive={interactive}

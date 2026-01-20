@@ -3,22 +3,36 @@ html, body {
   padding: 0;
   background: transparent;
   overflow: hidden;
+}
+
+/* Tool window needs fixed dimensions */
+html.tool-mode, body.tool-mode {
   width: 100%;
   height: 100%;
+}
+
+/* Overlay window uses minimal dimensions */
+html.overlay-mode, body.overlay-mode {
+  width: 280px;
+  height: 150px;
 }
 
 #root {
   margin: 0;
   padding: 0;
   background: transparent;
+}
+
+/* Tool window needs fixed dimensions */
+#root.tool-mode {
   width: 100%;
   height: 100%;
 }
 
 /* Overlay-specific styling */
 #root.overlay-mode {
-  width: auto;
-  height: auto;
+  width: 280px;
+  height: 150px;
   display: inline-block;
 }
 

@@ -65,6 +65,8 @@ let autoRevertTimer = null
 let autoRevertEnabled = false    // default: AUS (manuelles Umschalten)
 let autoTimeoutSec = 8           // default, wird aus Settings geladen
 let shortcut = 'Control+Alt+Space' // default shortcut, kann geaendert werden
+let snapTimer = null             // Timer for snap-to-top delay
+let lastPosition = null          // Last known position to detect actual movement
 
 let theme = {
   accent: '#22c55e',         // Haupt-Akzent (Buttons, Glow)
@@ -146,20 +148,32 @@ const createOverlayWindow = async () => {
     }
   }
 
-  log('Creating BrowserWindow with size:', state?.width || 250, 'x', state?.height || 130, 'at', x, y)
+  // Reset window size - force new default size (ignore saved size temporarily)
+  let width = 380
+  let height = 180
+  // Temporarily ignore saved size to apply new default
+  // if (state?.width && state.width <= 270) {
+  //   width = state.width
+  // }
+  // if (state?.height && state.height <= 150) {
+  //   height = state.height
+  // }
+
+  log('Creating BrowserWindow with size:', width, 'x', height, 'at', x, y)
 
   const preloadPath = path.join(__dirname, 'preload.cjs')
   log('Preload path:', preloadPath)
   log('Preload exists:', fs.existsSync(preloadPath))
 
   overlayWin = new BrowserWindow({
-    width: state?.width || 270,
-    height: state?.height || 150,
+    width: width,
+    height: height,
     x: x,
     y: y,
     frame: false,
     transparent: true,
     resizable: false,
+    minimizable: false,
     alwaysOnTop: true,
     skipTaskbar: false,
     autoHideMenuBar: true,
@@ -318,7 +332,35 @@ const createOverlayWindow = async () => {
     }
   })
 
-  overlayWin.on('move', () => saveBounds())
+  // Track when drag ends (mouse button released)
+  overlayWin.on('moved', () => {
+    // Mouse button was released after dragging
+    if (snapTimer) {
+      clearTimeout(snapTimer)
+    }
+
+    // Snap after 50ms delay
+    snapTimer = setTimeout(() => {
+      if (!overlayWin) return
+      const bounds = overlayWin.getBounds()
+      const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y })
+
+      // Snap to top of current display
+      overlayWin.setBounds({
+        x: bounds.x,
+        y: display.bounds.y,
+        width: bounds.width,
+        height: bounds.height
+      })
+
+      saveBounds()
+    }, 50)
+  })
+
+  overlayWin.on('move', () => {
+    // Just save bounds during move, don't snap
+    saveBounds()
+  })
   overlayWin.on('resize', () => saveBounds())
 
   // initial: clickthrough
@@ -371,10 +413,24 @@ const toggleInteract = () => {
 
 const registerShortcut = () => {
   globalShortcut.unregisterAll()
-  if (!shortcut) return
-  const ok = globalShortcut.register(shortcut, () => toggleInteract())
-  if (!ok) {
-    console.warn('Konnte Shortcut nicht registrieren:', shortcut)
+
+  // Always register default shortcut first
+  const defaultShortcut = 'Control+Alt+Space'
+  const defaultOk = globalShortcut.register(defaultShortcut, () => toggleInteract())
+  if (!defaultOk) {
+    console.warn('Konnte Standard-Shortcut nicht registrieren:', defaultShortcut)
+  } else {
+    log('Standard-Shortcut registriert:', defaultShortcut)
+  }
+
+  // Register custom shortcut if different from default
+  if (shortcut && shortcut !== defaultShortcut) {
+    const ok = globalShortcut.register(shortcut, () => toggleInteract())
+    if (!ok) {
+      console.warn('Konnte Custom-Shortcut nicht registrieren:', shortcut)
+    } else {
+      log('Custom-Shortcut registriert:', shortcut)
+    }
   }
 }
 
@@ -503,8 +559,8 @@ const openToolWindow = async (toolId) => {
     const saved = toolWindowRepo.get(toolId)
 
     toolWin = new BrowserWindow({
-      width: saved?.width || 600,
-      height: saved?.height || 420,
+      width: saved?.width || 500,
+      height: saved?.height || 600,
       x: saved?.pos_x,
       y: saved?.pos_y,
       resizable: true,

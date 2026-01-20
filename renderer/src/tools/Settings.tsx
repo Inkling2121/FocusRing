@@ -32,6 +32,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [recording, setRecording] = useState(false)
+  const [recordedKeys, setRecordedKeys] = useState<string[]>([])
 
   useEffect(() => {
     invoke<OverlayConfig>('overlay/getConfig')
@@ -46,13 +47,60 @@ const Settings: React.FC = () => {
       .catch(() => { })
   }, [])
 
+  // Global keyboard listener for recording
+  useEffect(() => {
+    if (!recording) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // Ignore single modifier keys
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
+        return
+      }
+
+      // Build shortcut string
+      const parts: string[] = []
+      if (e.ctrlKey) parts.push('Control')
+      if (e.altKey) parts.push('Alt')
+      if (e.shiftKey) parts.push('Shift')
+      if (e.metaKey) parts.push('Command')
+
+      // Map key to proper format
+      let key = e.key
+      if (key === ' ') key = 'Space'
+      else if (key.length === 1) key = key.toUpperCase()
+
+      parts.push(key)
+      const newShortcut = parts.join('+')
+
+      // Replace the recorded keys (only keep the latest combo)
+      setRecordedKeys([newShortcut])
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [recording])
+
   const save = async () => {
+    // Stop recording if still active and get the final shortcut
+    let finalShortcut = shortcut
+    if (recording) {
+      setRecording(false)
+      // Use the last recorded key as the shortcut
+      if (recordedKeys.length > 0) {
+        finalShortcut = recordedKeys[recordedKeys.length - 1]
+        setShortcut(finalShortcut)
+      }
+    }
+
     setSaving(true)
     setSaved(false)
     try {
       await invoke('overlay/setAutoRevert', autoRevertEnabled)
       await invoke('overlay/setAutoTimeout', sec)
-      await invoke('overlay/setShortcut', shortcut)
+      await invoke('overlay/setShortcut', finalShortcut)
       await invoke('overlay/setTheme', theme)
       setSaved(true)
       // Feedback nach 2 Sekunden ausblenden
@@ -62,40 +110,17 @@ const Settings: React.FC = () => {
     }
   }
 
-  const handleShortcutKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!recording) return
-
-    e.preventDefault()
-    e.stopPropagation()
-
-    // Ignore single modifier keys
-    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
-      return
-    }
-
-    // Build shortcut string
-    const parts: string[] = []
-    if (e.ctrlKey) parts.push('Control')
-    if (e.altKey) parts.push('Alt')
-    if (e.shiftKey) parts.push('Shift')
-    if (e.metaKey) parts.push('Command')
-
-    // Map key to proper format
-    let key = e.key
-    if (key === ' ') key = 'Space'
-    else if (key.length === 1) key = key.toUpperCase()
-
-    parts.push(key)
-    setShortcut(parts.join('+'))
-    setRecording(false)
-  }
-
-  const handleShortcutFocus = () => {
+  const startRecording = () => {
+    setRecordedKeys([])
     setRecording(true)
   }
 
-  const handleShortcutBlur = () => {
+  const stopRecording = () => {
     setRecording(false)
+    // Use the last recorded key as the shortcut
+    if (recordedKeys.length > 0) {
+      setShortcut(recordedKeys[recordedKeys.length - 1])
+    }
   }
 
   return (
@@ -135,29 +160,48 @@ const Settings: React.FC = () => {
       )}
 
       {/* Shortcut */}
-      <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        Shortcut (zum Umschalten)
-        <input
-          type="text"
-          value={recording ? 'Drücke Tastenkombination...' : shortcut}
-          readOnly
-          onFocus={handleShortcutFocus}
-          onBlur={handleShortcutBlur}
-          onKeyDown={handleShortcutKeyDown}
-          style={{
-            padding: 4,
-            borderRadius: 6,
-            border: recording ? `1px solid ${theme.accent}` : '1px solid #444',
-            background: 'rgba(20,20,20,0.9)',
-            color: recording ? theme.accent : '#fff',
-            cursor: 'pointer'
-          }}
-          placeholder="Klicke und drücke eine Tastenkombination"
-        />
-      </label>
+      <div style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Shortcut (zum Umschalten)</span>
+          <span style={{ fontSize: 11, color: '#888' }}>Standart immer verfügbar: Control+Alt+Space</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="text"
+            value={recording ? (recordedKeys.length > 0 ? recordedKeys[recordedKeys.length - 1] : 'Warte auf Tasteneingabe...') : shortcut}
+            readOnly
+            style={{
+              flex: 1,
+              padding: 4,
+              borderRadius: 6,
+              border: recording ? `1px solid ${theme.accent}` : '1px solid #444',
+              background: 'rgba(20,20,20,0.9)',
+              color: recording ? theme.accent : '#fff',
+              cursor: 'default'
+            }}
+            placeholder="Kein Shortcut aufgezeichnet"
+          />
+          <button
+            onClick={recording ? stopRecording : startRecording}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 6,
+              border: 'none',
+              background: recording ? '#ef4444' : '#22c55e',
+              color: '#000000',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {recording ? 'Stop' : 'Aufnehmen'}
+          </button>
+        </div>
+      </div>
 
       {/* Farben */}
-      <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
         Halbkreis-Farbe
         <input
           type="color"
@@ -165,9 +209,9 @@ const Settings: React.FC = () => {
           onChange={e => setTheme(t => ({ ...t, semicircleColor: e.target.value }))}
           style={{ width: 40, height: 24, border: 'none', background: 'transparent', cursor: 'pointer' }}
         />
-      </label>
+      </div>
 
-      <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
         Button-Farbe
         <input
           type="color"
@@ -175,9 +219,9 @@ const Settings: React.FC = () => {
           onChange={e => setTheme(t => ({ ...t, buttonColor: e.target.value }))}
           style={{ width: 40, height: 24, border: 'none', background: 'transparent', cursor: 'pointer' }}
         />
-      </label>
+      </div>
 
-      <label style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ fontSize: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
         Icon-Farbe
         <input
           type="color"
@@ -185,7 +229,7 @@ const Settings: React.FC = () => {
           onChange={e => setTheme(t => ({ ...t, iconColor: e.target.value }))}
           style={{ width: 40, height: 24, border: 'none', background: 'transparent', cursor: 'pointer' }}
         />
-      </label>
+      </div>
 
       <div style={{ position: 'relative', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
