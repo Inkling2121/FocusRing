@@ -20,6 +20,8 @@ const Reminders: React.FC = () => {
   const [time, setTime] = useState('')
   const [now, setNow] = useState(Date.now())
   const [busy, setBusy] = useState(false)
+  const timeInputRef = React.useRef<HTMLInputElement>(null)
+  const dateInputRef = React.useRef<HTMLInputElement>(null)
 
   const loadReminders = async () => {
     const data = await invoke<Reminder[]>('reminder/list')
@@ -70,6 +72,60 @@ const Reminders: React.FC = () => {
       )
     })
   }, [])
+
+  // Verlangsame Scroll-Verhalten in time/date inputs
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' &&
+          (target.getAttribute('type') === 'time' || target.getAttribute('type') === 'date')) {
+        e.preventDefault()
+
+        // Verlangsame das Scrollen durch throttling
+        const input = target as HTMLInputElement
+        const currentValue = input.value
+
+        if (!currentValue) return
+
+        if (target.getAttribute('type') === 'time') {
+          const [hours, minutes] = currentValue.split(':').map(Number)
+          const totalMinutes = hours * 60 + minutes
+          const delta = e.deltaY > 0 ? -1 : 1 // Invertiert für natürlichere Richtung
+          const newTotalMinutes = Math.max(0, Math.min(1439, totalMinutes + delta))
+          const newHours = Math.floor(newTotalMinutes / 60)
+          const newMinutes = newTotalMinutes % 60
+          input.value = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`
+          setTime(input.value)
+        } else if (target.getAttribute('type') === 'date') {
+          const currentDate = new Date(currentValue)
+          const delta = e.deltaY > 0 ? -1 : 1
+          currentDate.setDate(currentDate.getDate() + delta)
+          const newValue = currentDate.toISOString().slice(0, 10)
+          input.value = newValue
+          setDate(newValue)
+        }
+      }
+    }
+
+    const timeInput = timeInputRef.current
+    const dateInput = dateInputRef.current
+
+    if (timeInput) {
+      timeInput.addEventListener('wheel', handleWheel, { passive: false })
+    }
+    if (dateInput) {
+      dateInput.addEventListener('wheel', handleWheel, { passive: false })
+    }
+
+    return () => {
+      if (timeInput) {
+        timeInput.removeEventListener('wheel', handleWheel)
+      }
+      if (dateInput) {
+        dateInput.removeEventListener('wheel', handleWheel)
+      }
+    }
+  }, [timeInputRef, dateInputRef])
 
   const buildFireTimestamp = () => {
     const today = new Date()
@@ -220,6 +276,7 @@ const Reminders: React.FC = () => {
           >
             <span>Datum</span>
             <input
+              ref={dateInputRef}
               type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
@@ -244,6 +301,7 @@ const Reminders: React.FC = () => {
           >
             <span>Uhrzeit</span>
             <input
+              ref={timeInputRef}
               type="time"
               value={time}
               onChange={e => setTime(e.target.value)}

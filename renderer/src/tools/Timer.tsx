@@ -89,13 +89,11 @@ const TimerTool: React.FC = () => {
     }
   }
 
-  const handlePreset = (minutes: number, presetName: string) => {
-    setH('0')
+  const handlePreset = (hours: number, minutes: number, presetName: string) => {
+    setH(String(hours))
     setM(String(minutes))
     setS('0')
-    if (!name.trim()) {
-      setName(presetName)
-    }
+    setName(presetName)
   }
 
   const handlePause = async (timer: Timer) => {
@@ -183,7 +181,7 @@ const TimerTool: React.FC = () => {
       >
         <span style={{ fontSize: 12, opacity: 0.7, marginRight: 4 }}>Schnellauswahl:</span>
         <button
-          onClick={() => handlePreset(5, 'Kurze Pause')}
+          onClick={() => handlePreset(0, 5, 'Kurze Pause')}
           style={{
             padding: '4px 10px',
             borderRadius: 999,
@@ -197,7 +195,7 @@ const TimerTool: React.FC = () => {
           5 Min
         </button>
         <button
-          onClick={() => handlePreset(15, 'Fokus-Session')}
+          onClick={() => handlePreset(0, 15, 'Fokus-Session')}
           style={{
             padding: '4px 10px',
             borderRadius: 999,
@@ -211,7 +209,7 @@ const TimerTool: React.FC = () => {
           15 Min
         </button>
         <button
-          onClick={() => handlePreset(30, 'Arbeits-Block')}
+          onClick={() => handlePreset(0, 30, 'Arbeits-Block')}
           style={{
             padding: '4px 10px',
             borderRadius: 999,
@@ -225,7 +223,7 @@ const TimerTool: React.FC = () => {
           30 Min
         </button>
         <button
-          onClick={() => handlePreset(60, 'Volle Stunde')}
+          onClick={() => handlePreset(1, 0, 'Volle Stunde')}
           style={{
             padding: '4px 10px',
             borderRadius: 999,
@@ -293,7 +291,13 @@ const TimerTool: React.FC = () => {
             <input
               type="number"
               value={h}
-              onChange={e => setH(e.target.value)}
+              onChange={e => {
+                const val = e.target.value
+                // Nur ganze Zahlen erlauben (keine Kommazahlen)
+                if (val === '' || /^\d+$/.test(val)) {
+                  setH(val)
+                }
+              }}
               min={0}
               max={99}
               style={{
@@ -347,7 +351,13 @@ const TimerTool: React.FC = () => {
             <input
               type="number"
               value={m}
-              onChange={e => setM(e.target.value)}
+              onChange={e => {
+                const val = e.target.value
+                // Nur ganze Zahlen erlauben (keine Kommazahlen)
+                if (val === '' || /^\d+$/.test(val)) {
+                  setM(val)
+                }
+              }}
               min={0}
               max={59}
               style={{
@@ -401,7 +411,13 @@ const TimerTool: React.FC = () => {
             <input
               type="number"
               value={s}
-              onChange={e => setS(e.target.value)}
+              onChange={e => {
+                const val = e.target.value
+                // Nur ganze Zahlen erlauben (keine Kommazahlen)
+                if (val === '' || /^\d+$/.test(val)) {
+                  setS(val)
+                }
+              }}
               min={0}
               max={59}
               style={{

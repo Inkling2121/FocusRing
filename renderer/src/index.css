@@ -99,6 +99,7 @@ input[type="date"],
 input[type="time"] {
   color-scheme: dark;
   cursor: pointer;
+  scroll-behavior: smooth;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
@@ -112,6 +113,12 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
 input[type="time"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
+}
+
+/* Slow down scrolling in date/time inputs */
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  scroll-behavior: smooth;
 }
 
 /* Number input - remove default arrows */

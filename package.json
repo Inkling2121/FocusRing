@@ -1,6 +1,6 @@
 {
   "name": "focusring",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "FocusRing – Desktop Overlay fuer Notizen/Timer/Reminder",
   "main": "electron/main.js",
   "type": "module",
