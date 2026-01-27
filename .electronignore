@@ -1,0 +1,51 @@
+# Development files
+.git
+.gitignore
+.vscode
+.github
+*.log
+*.md
+README.md
+CHANGELOG.md
+
+# Source files (not needed in build)
+renderer/src
+renderer/index.html
+renderer/public
+
+# Build tools
+node_modules/.bin
+node_modules/.cache
+vite.config.ts
+tsconfig.json
+tsconfig.node.json
+
+# Development dependencies
+node_modules/@types
+node_modules/@vitejs
+node_modules/vite
+node_modules/typescript
+node_modules/concurrently
+node_modules/cross-env
+node_modules/wait-on
+node_modules/electron
+node_modules/electron-builder
+node_modules/electron-rebuild
+
+# Unnecessary files from dependencies
+**/*.d.ts
+**/*.map
+**/*.ts
+**/README.md
+**/CHANGELOG.md
+**/LICENSE
+**/license
+**/.github
+**/.vscode
+**/test
+**/tests
+**/__tests__
+**/examples
+**/docs
+**/*.md
+!dist/**

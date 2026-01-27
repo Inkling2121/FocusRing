@@ -1,6 +1,6 @@
 {
   "name": "focusring",
-  "version": "0.3.6",
+  "version": "1.0.0",
   "description": "FocusRing – Desktop Overlay fuer Notizen/Timer/Reminder",
   "main": "electron/main.js",
   "type": "module",
@@ -16,9 +16,14 @@
     "productName": "FocusRing",
     "publish": null,
     "files": [
-      "dist/**",
+      "dist/renderer/**",
       "electron/**",
-      "node_modules/sql.js/**",
+      "!electron/**/*.map",
+      "node_modules/sql.js/dist/sql-wasm.js",
+      "node_modules/sql.js/dist/sql-wasm.wasm",
+      "node_modules/marked/lib/marked.cjs",
+      "node_modules/marked/lib/marked.umd.js",
+      "node_modules/marked/package.json",
       "package.json"
     ],
     "asarUnpack": [
@@ -34,11 +39,14 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false
-    }
+      "allowToChangeInstallationDirectory": false,
+      "differentialPackage": true
+    },
+    "compression": "maximum",
+    "removePackageScripts": true,
+    "asar": true
   },
   "dependencies": {
-    "better-sqlite3": "^12.5.0",
     "lucide-react": "^0.562.0",
     "marked": "^17.0.1",
     "react": "^18.3.0",
