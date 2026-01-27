@@ -698,7 +698,7 @@ ipcMain.handle('overlay/setAutoTimeout', (_e, sec) => {
   }
 
   autoTimeoutSec = n
-  settingsRepo.set('overlay_auto_timeout_s', String(autoTimeoutSec))
+  settingsRepo.set({ key: 'overlay_auto_timeout_s', value: String(autoTimeoutSec) })
 
   if (interactive && autoRevertEnabled) {
     scheduleAutoRevert()
@@ -709,7 +709,7 @@ ipcMain.handle('overlay/setAutoTimeout', (_e, sec) => {
 
 ipcMain.handle('overlay/setAutoRevert', (_e, enabled) => {
   autoRevertEnabled = !!enabled
-  settingsRepo.set('overlay_auto_revert_enabled', String(autoRevertEnabled))
+  settingsRepo.set({ key: 'overlay_auto_revert_enabled', value: String(autoRevertEnabled) })
 
   // Wenn deaktiviert, laufenden Timer stoppen
   if (!autoRevertEnabled && autoRevertTimer) {
@@ -732,7 +732,7 @@ ipcMain.handle('overlay/setShortcut', (_e, value) => {
   }
 
   shortcut = v
-  settingsRepo.set('overlay_shortcut', shortcut)
+  settingsRepo.set({ key: 'overlay_shortcut', value: shortcut })
   registerShortcut()
 
   return { shortcut }
@@ -744,7 +744,7 @@ ipcMain.handle('overlay/setTheme', (_e, newTheme) => {
   }
 
   theme = { ...theme, ...newTheme }
-  settingsRepo.set('overlay_theme', JSON.stringify(theme))
+  settingsRepo.set({ key: 'overlay_theme', value: JSON.stringify(theme) })
 
   // Renderer informieren (Overlay + Tools)
   if (overlayWin && !overlayWin.isDestroyed()) {
@@ -773,12 +773,11 @@ ipcMain.handle('tools/open', (_e, toolId) => {
 // notes
 ipcMain.handle('notes/list', () => notesRepo.getAll())
 ipcMain.handle('notes/create', (_e, n) => {
-  const id = notesRepo.create(n)
-  return notesRepo.getById(id)
+  const note = notesRepo.create(n)
+  return note
 })
 ipcMain.handle('notes/update', (_e, n) => {
-  notesRepo.update(n.id, n)
-  return notesRepo.getById(n.id)
+  return notesRepo.update(n)
 })
 ipcMain.handle('notes/delete', (_e, id) => notesRepo.remove(id))
 
@@ -945,7 +944,7 @@ ipcMain.handle('reminder/delete', (_e, id) => {
   remindersRepo.remove(id)
   return true
 })
-ipcMain.handle('reminder/list', () => remindersRepo.getAll())
+ipcMain.handle('reminder/list', () => remindersRepo.list())
 
 // settings generic
 ipcMain.handle('settings/get', (_e, key) => settingsRepo.get(key))
@@ -953,6 +952,6 @@ ipcMain.handle('settings/set', (_e, kv) => settingsRepo.set(kv))
 
 // first launch welcome
 ipcMain.handle('overlay/dismissWelcome', () => {
-  settingsRepo.set('first_launch_welcome_shown', 'true')
+  settingsRepo.set({ key: 'first_launch_welcome_shown', value: 'true' })
   return true
 })

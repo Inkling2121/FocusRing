@@ -9,9 +9,9 @@ export const startScheduler = (onFire) => {
   if (tickHandle) return
   tickHandle = setInterval(() => {
     const now = Date.now()
-    const list = remindersRepo.getAll().filter(r => r.status === 'scheduled' && r.fire_at <= now)
+    const list = remindersRepo.list().filter(r => r.status === 'scheduled' && r.fire_at <= now)
     for (const r of list) {
-      remindersRepo.update(r.id, { ...r, status: 'fired' })
+      remindersRepo.fired(r.id)
       if (onFireCallback) onFireCallback(r)
       clearPending(r.id)
     }
@@ -30,7 +30,7 @@ export const scheduleReminder = (r) => {
   clearPending(r.id)
   const delay = Math.max(0, r.fire_at - Date.now())
   const t = setTimeout(() => {
-    remindersRepo.update(r.id, { ...r, status: 'fired' })
+    remindersRepo.fired(r.id)
     if (onFireCallback) onFireCallback(r)
   }, delay)
   pending.set(r.id, t)
@@ -46,14 +46,14 @@ export const rescheduleAll = () => {
   pending.clear()
 
   // Reschedule all active reminders
-  const list = remindersRepo.getAll().filter(r => r.status === 'scheduled')
+  const list = remindersRepo.list().filter(r => r.status === 'scheduled')
   const now = Date.now()
   for (const r of list) {
     if (r.fire_at > now) {
       scheduleReminder(r)
     } else {
       // Already passed, mark as fired immediately
-      remindersRepo.update(r.id, { ...r, status: 'fired' })
+      remindersRepo.fired(r.id)
     }
   }
 }

@@ -54,22 +54,8 @@ const Reminders: React.FC = () => {
 
   useEffect(() => {
     onReminder(rem => {
-      setReminders(prev =>
-        prev.map(r =>
-          r.id === rem.id
-            ? {
-                ...r,
-                status: 'fired',
-                fire_at:
-                  typeof rem.fire_at === 'number'
-                    ? rem.fire_at
-                    : rem.fire_at
-                    ? Number(rem.fire_at)
-                    : r.fire_at
-              }
-            : r
-        )
-      )
+      // Reload complete list to ensure correct status
+      loadReminders()
     })
   }, [])
 

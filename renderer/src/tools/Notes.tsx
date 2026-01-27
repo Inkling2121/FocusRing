@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { invoke } from '../ipc'
 import { marked } from 'marked'
 
@@ -18,6 +18,7 @@ const Notes: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const updateTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const selected = useMemo(
     () => notes.find(n => n.id === selectedId),
@@ -92,7 +93,7 @@ const Notes: React.FC = () => {
     }
   }
 
-  const updateNote = async (partial: Partial<Note>) => {
+  const updateNote = useCallback((partial: Partial<Note>) => {
     if (!selected) return
     const updated: Note = { ...selected, ...partial }
 
@@ -100,13 +101,21 @@ const Notes: React.FC = () => {
     setNotes(prev => prev.map(n => (n.id === updated.id ? updated : n)))
 
     if (!updated.id) return
-    try {
-      await invoke('notes/update', updated)
-    } catch {
-      // Im Fehlerfall koenntest du z.B. loadNotes() rufen,
-      // aber wir lassen es hier minimal
+
+    // Debounce DB-Update
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current)
     }
-  }
+
+    updateTimerRef.current = setTimeout(async () => {
+      try {
+        await invoke('notes/update', updated)
+      } catch {
+        // Im Fehlerfall koenntest du z.B. loadNotes() rufen,
+        // aber wir lassen es hier minimal
+      }
+    }, 500)
+  }, [selected])
 
   const handleTitleChange = (value: string) => {
     updateNote({ title: value })
