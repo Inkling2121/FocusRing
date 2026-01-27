@@ -186,6 +186,9 @@ const createOverlayWindow = async () => {
     }
   })
 
+  // Completely disable menu bar
+  overlayWin.setMenuBarVisibility(false)
+
   log('BrowserWindow created')
 
   // Prevent closing in dev mode until content is loaded
@@ -300,8 +303,6 @@ const createOverlayWindow = async () => {
     }
 
     if (loaded && !overlayWin.isDestroyed()) {
-      log('Opening DevTools...')
-      overlayWin.webContents.openDevTools({ mode: 'detach' })
       overlayWin.setClosable(true)
       log('Window set to closable after successful load')
     } else {
@@ -576,6 +577,9 @@ const openToolWindow = async (toolId) => {
         cache: false
       }
     })
+
+    // Completely disable menu bar
+    toolWin.setMenuBarVisibility(false)
 
     let currentToolId = toolId
 

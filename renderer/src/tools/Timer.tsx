@@ -289,17 +289,22 @@ const TimerTool: React.FC = () => {
               ▲
             </button>
             <input
-              type="number"
+              type="text"
               value={h}
               onChange={e => {
                 const val = e.target.value
                 // Nur ganze Zahlen erlauben (keine Kommazahlen)
                 if (val === '' || /^\d+$/.test(val)) {
-                  setH(val)
+                  const num = parseInt(val || '0', 10)
+                  if (num <= 99) {
+                    setH(val)
+                  }
                 }
               }}
-              min={0}
-              max={99}
+              onBlur={() => {
+                // Bei Blur: leeren String zu "0" machen
+                if (h === '' || h === undefined) setH('0')
+              }}
               style={{
                 width: 42,
                 padding: '4px 6px',
@@ -349,17 +354,22 @@ const TimerTool: React.FC = () => {
               ▲
             </button>
             <input
-              type="number"
+              type="text"
               value={m}
               onChange={e => {
                 const val = e.target.value
                 // Nur ganze Zahlen erlauben (keine Kommazahlen)
                 if (val === '' || /^\d+$/.test(val)) {
-                  setM(val)
+                  const num = parseInt(val || '0', 10)
+                  if (num <= 59) {
+                    setM(val)
+                  }
                 }
               }}
-              min={0}
-              max={59}
+              onBlur={() => {
+                // Bei Blur: leeren String zu "0" machen
+                if (m === '' || m === undefined) setM('0')
+              }}
               style={{
                 width: 42,
                 padding: '4px 6px',
@@ -409,17 +419,22 @@ const TimerTool: React.FC = () => {
               ▲
             </button>
             <input
-              type="number"
+              type="text"
               value={s}
               onChange={e => {
                 const val = e.target.value
                 // Nur ganze Zahlen erlauben (keine Kommazahlen)
                 if (val === '' || /^\d+$/.test(val)) {
-                  setS(val)
+                  const num = parseInt(val || '0', 10)
+                  if (num <= 59) {
+                    setS(val)
+                  }
                 }
               }}
-              min={0}
-              max={59}
+              onBlur={() => {
+                // Bei Blur: leeren String zu "0" machen
+                if (s === '' || s === undefined) setS('0')
+              }}
               style={{
                 width: 42,
                 padding: '4px 6px',

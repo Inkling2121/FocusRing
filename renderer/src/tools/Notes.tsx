@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { invoke } from '../ipc'
+import { marked } from 'marked'
 
 type Note = {
   id?: number
@@ -16,6 +17,7 @@ const Notes: React.FC = () => {
   const [filter, setFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   const selected = useMemo(
     () => notes.find(n => n.id === selectedId),
@@ -122,6 +124,18 @@ const Notes: React.FC = () => {
     updateNote({ pinned: nextPinned })
   }
 
+  // Render markdown to plain text for preview (remove HTML tags)
+  const renderMarkdownPreview = (text: string): string => {
+    if (!text) return ''
+    try {
+      const html = marked.parse(text, { breaks: true }) as string
+      // Remove HTML tags for plain text preview
+      return html.replace(/<[^>]*>/g, '').substring(0, 100)
+    } catch {
+      return text.substring(0, 100)
+    }
+  }
+
   const filteredNotes = useMemo(() => {
     const query = filter.trim().toLowerCase()
     const base = query
@@ -139,6 +153,15 @@ const Notes: React.FC = () => {
           (b.id || 0) - (a.id || 0)
       )
   }, [notes, filter])
+
+  const renderedContent = useMemo(() => {
+    if (!selected?.content) return ''
+    try {
+      return marked.parse(selected.content, { breaks: true })
+    } catch (e) {
+      return selected.content
+    }
+  }, [selected?.content])
 
   return (
     <div
@@ -287,7 +310,7 @@ const Notes: React.FC = () => {
                         overflow: 'hidden'
                       }}
                     >
-                      {n.content || 'Leer'}
+                      {renderMarkdownPreview(n.content) || 'Leer'}
                     </span>
                   </div>
                 </button>
@@ -343,6 +366,21 @@ const Notes: React.FC = () => {
               />
               <button
                 type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: `1px solid ${accent}`,
+                  background: showPreview ? accent : 'transparent',
+                  color: showPreview ? '#0b1120' : accent,
+                  cursor: 'pointer',
+                  fontSize: 12
+                }}
+              >
+                {showPreview ? 'Editor' : 'Vorschau'}
+              </button>
+              <button
+                type="button"
                 onClick={handleTogglePin}
                 style={{
                   padding: '4px 10px',
@@ -380,22 +418,41 @@ const Notes: React.FC = () => {
               </button>
             </div>
 
-            <textarea
-              value={selected.content}
-              onChange={e => handleContentChange(e.target.value)}
-              placeholder="Notizinhalt..."
-              style={{
-                flex: 1,
-                resize: 'none',
-                padding: '8px 10px',
-                borderRadius: 10,
-                border: '1px solid #444',
-                background: 'rgba(20,20,20,0.9)',
-                color: '#f9fafb',
-                fontSize: 13,
-                lineHeight: 1.4
-              }}
-            />
+            {!showPreview ? (
+              <textarea
+                value={selected.content}
+                onChange={e => handleContentChange(e.target.value)}
+                placeholder="Notizinhalt... (Markdown unterstützt)"
+                style={{
+                  flex: 1,
+                  resize: 'none',
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: '1px solid #444',
+                  background: 'rgba(20,20,20,0.9)',
+                  color: '#f9fafb',
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  fontFamily: 'monospace'
+                }}
+              />
+            ) : (
+              <div
+                className="markdown-preview"
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: '1px solid #444',
+                  background: 'rgba(20,20,20,0.9)',
+                  color: '#f9fafb',
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  overflow: 'auto'
+                }}
+                dangerouslySetInnerHTML={{ __html: renderedContent }}
+              />
+            )}
           </>
         )}
       </div>
